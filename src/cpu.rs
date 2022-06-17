@@ -761,11 +761,44 @@ impl Cpu {
                 self.overflow_subtraction(value);
                 self.program_counter += 1;
             }
-            Instruction::SubtractA => todo!(),
-            Instruction::SubtractAHL => todo!(),
-            Instruction::SubtractARegCarry { register } => todo!(),
-            Instruction::SubtractACarry => todo!(),
-            Instruction::SubtractAHLCarry => todo!(),
+            Instruction::SubtractA => {
+                let value = memory.read(self.program_counter + 1);
+                self.overflow_subtraction(value);
+                self.program_counter += 1;
+            }
+            Instruction::SubtractAHL => {
+                let value = memory.read(self.hl());
+                self.overflow_subtraction(value);
+                self.program_counter += 1;
+            }
+            Instruction::SubtractARegCarry { register } => {
+                let value: u8;
+                match register {
+                    Register::B => value = self.b,
+                    Register::C => value = self.c,
+                    Register::D => value = self.d,
+                    Register::E => value = self.e,
+                    Register::H => value = self.h,
+                    Register::L => value = self.l,
+                    Register::A => value = self.a,
+                }
+
+                let carry = if self.is_carry() { 1 } else { 0 };
+                self.overflow_subtraction(value + carry);
+                self.program_counter += 1;
+            }
+            Instruction::SubtractACarry => {
+                let value = memory.read(self.program_counter + 1);
+                let carry = if self.is_carry() { 1 } else { 0 };
+                self.overflow_subtraction(value + carry);
+                self.program_counter += 2;
+            }
+            Instruction::SubtractAHLCarry => {
+                let value = memory.read(self.hl());
+                let carry = if self.is_carry() { 1 } else { 0 };
+                self.overflow_subtraction(value + carry);
+                self.program_counter += 1;
+            }
             //-----------------------------
             Instruction::Invalid => todo!(),
             Instruction::Nop => {
