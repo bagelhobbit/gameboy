@@ -129,7 +129,54 @@ pub enum Instruction {
     SubtractACarry,
     /// 0x9E - SBC A,(HL)
     SubtractAHLCarry,
-
+    /// 0xA{0-7} - AND R
+    AndAReg {
+        register: Register,
+    },
+    /// 0xE6 - AND d8
+    AndA,
+    /// 0xA6 - AND (HL)
+    AndAHL,
+    /// 0xA{8-F} - XOR R
+    XorAReg {
+        register: Register,
+    },
+    /// 0xEE - XOR d8
+    XorA,
+    /// 0xAE - XOR (HL)
+    XorAHL,
+    /// 0xB{0-7} - OR R
+    OrAReg {
+        register: Register,
+    },
+    /// 0xF6 - OR d8
+    OrA,
+    /// 0xB6 - OR (HL)
+    OrAHL,
+    /// 0xB{8-F} - CP R
+    CompareAReg {
+        register: Register,
+    },
+    /// 0xFE - CP d8
+    CompareA,
+    /// 0xBE - CP (HL)
+    CompareAHL,
+    /// 0x{0-2}{4,C} - INC R
+    IncrementReg {
+        register: Register,
+    },
+    /// 0x34 - INC (HL)
+    IncrementHL,
+    /// 0x{0-2}{5,D} - DEC R
+    DecrementReg {
+        register: Register,
+    },
+    /// 0x35 - DEC (HL)
+    DecrementHL,
+    /// 0x27 - DAA
+    DecimalAdjustA,
+    /// 0x2F - CPL
+    Complement,
     //--------------------
     /// 0x00 - NOP
     Nop,
@@ -147,45 +194,12 @@ pub enum Instruction {
     },
     /// 0x1F - RRA
     RotateARightThroughCarry,
-    /// 0x27 - DAA
-    DecimalAdjustA,
-    /// 0x2F - CPL
-    /// * stands for ComPLement?
-    Cpl,
-    /// 0x34 - INC (HL)
-    IncrementHL,
-    /// 0x35 - DEC (HL)
-    DecrementHL,
     /// 0x37 - SCF
     Scf,
     /// 0x3F - CCF
     Ccf,
     /// 0x76 - HALT
     Halt,
-    /// 0xA6 - AND (HL)
-    AndAHL,
-    /// 0xAE - XOR (HL)
-    XorAHL,
-    /// 0xA{0-7} - AND R
-    AndAReg {
-        reg: u8,
-    },
-    /// 0xA{8-F} - XOR R
-    XorAReg {
-        reg: u8,
-    },
-    /// 0xB6 - OR (HL)
-    OrAHL,
-    /// 0xBE - CP (HL)
-    CompareAHL,
-    /// 0xB{0-7} - OR R
-    OrAReg {
-        reg: u8,
-    },
-    /// 0xB{8-F} - CP R
-    CompareAReg {
-        reg: u8,
-    },
     /// 0xC0 - RET NZ
     ReturnIfNotZero,
     /// 0xC2 - JP NZ,a16
@@ -242,44 +256,22 @@ pub enum Instruction {
     CallIfCarry {
         address: u16,
     },
-    /// 0xE6 - AND d8
-    AndA {
-        data: u8,
-    },
     /// 0xE8 - ADD SP,r8
     AddSPOffset {
         offset: i8,
     },
     /// 0xE9 - JP (HL)
     JumpHL,
-    /// 0xEE - XOR d8
-    XorA,
     /// 0xF3 - DI
     DisableInterrupts,
-    /// 0xF6 - OR d8
-    OrA {
-        data: u8,
-    },
     /// 0xF8 - LD HL,SP+r8
     LoadHLSPOffset {
         offset: i8,
     },
     /// 0xFB - EI
     EnableInterrupts,
-    /// 0xFE - CP d8
-    CompareA {
-        data: u8,
-    },
     /// 0x{0-3}3 - INC RR
     IncrementReg16 {
-        reg: u8,
-    },
-    /// 0x{0-3}4 - INC R
-    IncrementHighReg {
-        reg: u8,
-    },
-    /// 0x{0-3}5 - DEC R
-    DecrementHighReg {
         reg: u8,
     },
     /// 0x{C-F}6 - RST x0H
@@ -292,14 +284,6 @@ pub enum Instruction {
     },
     /// 0x{0-4}B - DEC RR
     DecrementReg16 {
-        reg: u8,
-    },
-    /// 0x{0-3}C - INC R
-    IncrementLowReg {
-        reg: u8,
-    },
-    /// 0x{0-3}D - DEC R
-    DecrementLowReg {
         reg: u8,
     },
     /// 0x{C-F}F - RST x8H

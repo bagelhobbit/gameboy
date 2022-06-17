@@ -131,7 +131,7 @@ impl Cpu {
                 flag: ConditionalFlag::Z,
             },
             (0x2, 0xA) => Instruction::LoadIncrementAHL,
-            (0x2, 0xF) => Instruction::Cpl,
+            (0x2, 0xF) => Instruction::Complement,
             (0x3, 0x0) => Instruction::JumpRelative {
                 flag: ConditionalFlag::NC,
             },
@@ -276,19 +276,47 @@ impl Cpu {
             (0xA, 0x6) => Instruction::AndAHL,
             (0xA, 0xE) => Instruction::XorAHL,
             (0xA, reg) => {
+                let registers = [
+                    Register::B,
+                    Register::C,
+                    Register::D,
+                    Register::E,
+                    Register::H,
+                    Register::L,
+                    Register::A, //Duplicate entry to pad AND/XOR (HL)
+                    Register::A,
+                ];
                 if reg <= 7 {
-                    Instruction::AndAReg { reg }
+                    Instruction::AndAReg {
+                        register: registers[reg as usize],
+                    }
                 } else {
-                    Instruction::XorAReg { reg }
+                    Instruction::XorAReg {
+                        register: registers[reg as usize % 8],
+                    }
                 }
             }
             (0xB, 0x6) => Instruction::OrAHL,
             (0xB, 0xE) => Instruction::CompareAHL,
             (0xB, reg) => {
+                let registers = [
+                    Register::B,
+                    Register::C,
+                    Register::D,
+                    Register::E,
+                    Register::H,
+                    Register::L,
+                    Register::A, //Duplicate entry to pad OR/CP (HL)
+                    Register::A,
+                ];
                 if reg <= 7 {
-                    Instruction::OrAReg { reg }
+                    Instruction::OrAReg {
+                        register: registers[reg as usize],
+                    }
                 } else {
-                    Instruction::CompareAReg { reg }
+                    Instruction::CompareAReg {
+                        register: registers[reg as usize % 8],
+                    }
                 }
             }
             (0xC, 0x0) => Instruction::ReturnIfNotZero,
@@ -374,10 +402,7 @@ impl Cpu {
             (0xD, 0xE) => Instruction::SubtractACarry,
             (0xE, 0x0) => Instruction::LoadOffsetA,
             (0xE, 0x2) => Instruction::LoadOffsetCA,
-            (0xE, 0x6) => {
-                let data = memory.rom[self.program_counter as usize + 1];
-                Instruction::AndA { data }
-            }
+            (0xE, 0x6) => Instruction::AndA,
             (0xE, 0x8) => {
                 let offset = memory.rom[self.program_counter as usize + 1] as i8;
                 Instruction::AddSPOffset { offset }
@@ -388,10 +413,7 @@ impl Cpu {
             (0xF, 0x0) => Instruction::LoadAOffset,
             (0xF, 0x2) => Instruction::LoadAOffsetC,
             (0xF, 0x3) => Instruction::DisableInterrupts,
-            (0xF, 0x6) => {
-                let data = memory.rom[self.program_counter as usize + 1];
-                Instruction::OrA { data }
-            }
+            (0xF, 0x6) => Instruction::OrA,
             (0xF, 0x8) => {
                 let offset = memory.rom[self.program_counter as usize + 1] as i8;
                 Instruction::LoadHLSPOffset { offset }
@@ -399,10 +421,7 @@ impl Cpu {
             (0xF, 0x9) => Instruction::LoadSPHL,
             (0xF, 0xA) => Instruction::LoadAAddress,
             (0xF, 0xB) => Instruction::EnableInterrupts,
-            (0xF, 0xE) => {
-                let data = memory.rom[self.program_counter as usize + 1];
-                Instruction::CompareA { data }
-            }
+            (0xF, 0xE) => Instruction::CompareA,
             (reg, 0x1) => {
                 let registers = [
                     DoubleRegister::BC,
@@ -422,10 +441,18 @@ impl Cpu {
                 }
             }
             (reg, 0x3) => Instruction::IncrementReg16 { reg },
-            (reg, 0x4) => Instruction::IncrementHighReg { reg },
+            (reg, 0x4) => {
+                let registers = [Register::B, Register::D, Register::H];
+                Instruction::IncrementReg {
+                    register: registers[reg as usize],
+                }
+            }
             (reg, 0x5) => {
                 if reg < 4 {
-                    Instruction::DecrementHighReg { reg }
+                    let registers = [Register::B, Register::D, Register::H];
+                    Instruction::DecrementReg {
+                        register: registers[reg as usize],
+                    }
                 } else {
                     let registers = [
                         DoubleRegister::BC,
@@ -452,12 +479,22 @@ impl Cpu {
             }
             (reg, 0x9) => Instruction::AddHLReg { reg },
             (reg, 0xB) => Instruction::DecrementReg16 { reg },
-            (reg, 0xC) => Instruction::IncrementLowReg { reg },
-            (reg, 0xD) => Instruction::DecrementLowReg { reg },
+            (reg, 0xC) => {
+                let registers = [Register::C, Register::E, Register::L, Register::A];
+                Instruction::IncrementReg {
+                    register: registers[reg as usize],
+                }
+            }
+            (reg, 0xD) => {
+                let registers = [Register::C, Register::E, Register::L, Register::A];
+                Instruction::DecrementReg {
+                    register: registers[reg as usize],
+                }
+            }
             (reg, 0xE) => {
                 let registers = [Register::C, Register::E, Register::L, Register::A];
                 Instruction::LoadReg8 {
-                    register: registers[(reg % 4) as usize],
+                    register: registers[reg as usize % 4],
                 }
             }
             (location, 0xF) => Instruction::Reset8 { location },
@@ -758,17 +795,17 @@ impl Cpu {
                     Register::A => value = self.a,
                 }
 
-                self.overflow_subtraction(value);
+                self.a = self.overflow_subtraction(value);
                 self.program_counter += 1;
             }
             Instruction::SubtractA => {
                 let value = memory.read(self.program_counter + 1);
-                self.overflow_subtraction(value);
+                self.a = self.overflow_subtraction(value);
                 self.program_counter += 1;
             }
             Instruction::SubtractAHL => {
                 let value = memory.read(self.hl());
-                self.overflow_subtraction(value);
+                self.a = self.overflow_subtraction(value);
                 self.program_counter += 1;
             }
             Instruction::SubtractARegCarry { register } => {
@@ -784,19 +821,335 @@ impl Cpu {
                 }
 
                 let carry = if self.is_carry() { 1 } else { 0 };
-                self.overflow_subtraction(value + carry);
+                self.a = self.overflow_subtraction(value + carry);
                 self.program_counter += 1;
             }
             Instruction::SubtractACarry => {
                 let value = memory.read(self.program_counter + 1);
                 let carry = if self.is_carry() { 1 } else { 0 };
-                self.overflow_subtraction(value + carry);
+                self.a = self.overflow_subtraction(value + carry);
                 self.program_counter += 2;
             }
             Instruction::SubtractAHLCarry => {
                 let value = memory.read(self.hl());
                 let carry = if self.is_carry() { 1 } else { 0 };
-                self.overflow_subtraction(value + carry);
+                self.a = self.overflow_subtraction(value + carry);
+                self.program_counter += 1;
+            }
+            Instruction::AndAReg { register } => {
+                let value: u8;
+                match register {
+                    Register::B => value = self.b,
+                    Register::C => value = self.c,
+                    Register::D => value = self.d,
+                    Register::E => value = self.e,
+                    Register::H => value = self.h,
+                    Register::L => value = self.l,
+                    Register::A => value = self.a,
+                }
+
+                self.a = self.a & value;
+
+                self.set_zero(self.a == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(true);
+                self.set_carry(false);
+
+                self.program_counter += 1;
+            }
+            Instruction::AndA => {
+                let value = memory.read(self.program_counter + 1);
+
+                self.a = self.a & value;
+
+                self.set_zero(self.a == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(true);
+                self.set_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::AndAHL => {
+                let value = memory.read(self.hl());
+
+                self.a = self.a & value;
+
+                self.set_zero(self.a == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(true);
+                self.set_carry(false);
+
+                self.program_counter += 1;
+            }
+            Instruction::XorAReg { register } => {
+                let value: u8;
+                match register {
+                    Register::B => value = self.b,
+                    Register::C => value = self.c,
+                    Register::D => value = self.d,
+                    Register::E => value = self.e,
+                    Register::H => value = self.h,
+                    Register::L => value = self.l,
+                    Register::A => value = self.a,
+                }
+
+                self.a = self.a ^ value;
+
+                self.set_zero(self.a == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+                self.set_carry(false);
+
+                self.program_counter += 1;
+            }
+            Instruction::XorA => {
+                let value = memory.read(self.program_counter + 1);
+
+                self.a = self.a ^ value;
+
+                self.set_zero(self.a == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+                self.set_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::XorAHL => {
+                let value = memory.read(self.hl());
+
+                self.a = self.a ^ value;
+
+                self.set_zero(self.a == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+                self.set_carry(false);
+
+                self.program_counter += 1;
+            }
+            Instruction::OrAReg { register } => {
+                let value: u8;
+                match register {
+                    Register::B => value = self.b,
+                    Register::C => value = self.c,
+                    Register::D => value = self.d,
+                    Register::E => value = self.e,
+                    Register::H => value = self.h,
+                    Register::L => value = self.l,
+                    Register::A => value = self.a,
+                }
+
+                self.a = self.a | value;
+
+                self.set_zero(self.a == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+                self.set_carry(false);
+
+                self.program_counter += 1;
+            }
+            Instruction::OrA => {
+                let value = memory.read(self.program_counter + 1);
+
+                self.a = self.a | value;
+
+                self.set_zero(self.a == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+                self.set_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::OrAHL => {
+                let value = memory.read(self.hl());
+
+                self.a = self.a | value;
+
+                self.set_zero(self.a == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+                self.set_carry(false);
+
+                self.program_counter += 1;
+            }
+            Instruction::CompareAReg { register } => {
+                let value: u8;
+                match register {
+                    Register::B => value = self.b,
+                    Register::C => value = self.c,
+                    Register::D => value = self.d,
+                    Register::E => value = self.e,
+                    Register::H => value = self.h,
+                    Register::L => value = self.l,
+                    Register::A => value = self.a,
+                }
+
+                _ = self.overflow_subtraction(value);
+                self.program_counter += 1;
+            }
+            Instruction::CompareA => {
+                let value = memory.read(self.program_counter + 1);
+                _ = self.overflow_subtraction(value);
+                self.program_counter += 2;
+            }
+            Instruction::CompareAHL => {
+                let value = memory.read(self.hl());
+                _ = self.overflow_subtraction(value);
+                self.program_counter += 1;
+            }
+            Instruction::IncrementReg { register } => {
+                let (before, after) = match register {
+                    Register::B => {
+                        let before = self.b;
+                        let result = self.b as u16 + 1;
+                        self.b = (result & 0x00FF) as u8;
+                        (before, self.b)
+                    }
+                    Register::C => {
+                        let before = self.c;
+                        let result = self.c as u16 + 1;
+                        self.c = (result & 0x00FF) as u8;
+                        (before, self.c)
+                    }
+                    Register::D => {
+                        let before = self.d;
+                        let result = self.d as u16 + 1;
+                        self.d = (result & 0x00FF) as u8;
+                        (before, self.d)
+                    }
+                    Register::E => {
+                        let before = self.e;
+                        let result = self.e as u16 + 1;
+                        self.e = (result & 0x00FF) as u8;
+                        (before, self.e)
+                    }
+                    Register::H => {
+                        let before = self.h;
+                        let result = self.h as u16 + 1;
+                        self.h = (result & 0x00FF) as u8;
+                        (before, self.h)
+                    }
+                    Register::L => {
+                        let before = self.l;
+                        let result = self.l as u16 + 1;
+                        self.l = (result & 0x00FF) as u8;
+                        (before, self.l)
+                    }
+                    Register::A => {
+                        let before = self.a;
+                        let result = self.a as u16 + 1;
+                        self.a = (result & 0x00FF) as u8;
+                        (before, self.a)
+                    }
+                };
+
+                self.set_zero(after == 0);
+                self.set_subtraction(false);
+                self.set_half_carry((before & 0x0F) + 1 > 0x0F);
+
+                self.program_counter += 1;
+            }
+            Instruction::IncrementHL => {
+                let data = memory.read(self.hl());
+                let result = data as u16 + 1;
+                let write_data = (result & 0x00FF) as u8;
+
+                self.set_zero(write_data == 0);
+                self.set_subtraction(false);
+                self.set_half_carry((data & 0x0F) + 1 > 0x0F);
+
+                memory.write(self.hl(), write_data);
+                self.program_counter += 1;
+            }
+            Instruction::DecrementReg { register } => {
+                let (before, after) = match register {
+                    Register::B => {
+                        let before = self.b;
+                        let result = self.b as i16 - 1;
+                        self.b = (result & 0x00FF) as u8;
+                        (before, self.b)
+                    }
+                    Register::C => {
+                        let before = self.c;
+                        let result = self.c as i16 - 1;
+                        self.c = (result & 0x00FF) as u8;
+                        (before, self.c)
+                    }
+                    Register::D => {
+                        let before = self.d;
+                        let result = self.d as i16 - 1;
+                        self.d = (result & 0x00FF) as u8;
+                        (before, self.d)
+                    }
+                    Register::E => {
+                        let before = self.e;
+                        let result = self.e as i16 - 1;
+                        self.e = (result & 0x00FF) as u8;
+                        (before, self.e)
+                    }
+                    Register::H => {
+                        let before = self.h;
+                        let result = self.h as i16 - 1;
+                        self.h = (result & 0x00FF) as u8;
+                        (before, self.h)
+                    }
+                    Register::L => {
+                        let before = self.l;
+                        let result = self.l as i16 - 1;
+                        self.l = (result & 0x00FF) as u8;
+                        (before, self.l)
+                    }
+                    Register::A => {
+                        let before = self.a;
+                        let result = self.a as i16 - 1;
+                        self.a = (result & 0x00FF) as u8;
+                        (before, self.a)
+                    }
+                };
+
+                self.set_zero(after == 0);
+                self.set_subtraction(true);
+                self.set_half_carry((before & 0x0F) < 1);
+
+                self.program_counter += 1;
+            }
+            Instruction::DecrementHL => {
+                let data = memory.read(self.hl());
+                let result = data as i16 - 1;
+                let write_data = (result & 0x00FF) as u8;
+
+                self.set_zero(write_data == 0);
+                self.set_subtraction(true);
+                self.set_half_carry((data & 0x0F) < 1);
+
+                memory.write(self.hl(), write_data);
+                self.program_counter += 1;
+            }
+            Instruction::DecimalAdjustA => {
+                let mut correction: u8 = 0;
+
+                if self.is_half_carry() || (!self.is_subtraction() && (self.a & 0x0F) > 9) {
+                    correction += 0x06;
+                }
+
+                if self.is_carry() || (!self.is_subtraction() && self.a > 0x99) {
+                    correction += 0x60;
+                    self.set_carry(true);
+                }
+
+                if self.is_subtraction() {
+                    self.a -= correction;
+                } else {
+                    self.a += correction;
+                }
+
+                self.set_zero(self.a == 0);
+                self.set_half_carry(false);
+                self.program_counter += 1;
+            }
+            Instruction::Complement => {
+                self.a ^= 0xFF;
+                self.set_subtraction(true);
+                self.set_half_carry(true);
                 self.program_counter += 1;
             }
             //-----------------------------
@@ -875,21 +1228,9 @@ impl Cpu {
             }
 
             //TODO
-            Instruction::DecimalAdjustA => todo!(),
-            Instruction::Cpl => todo!(),
-            Instruction::IncrementHL => todo!(),
-            Instruction::DecrementHL => todo!(),
             Instruction::Scf => todo!(),
             Instruction::Ccf => todo!(),
             Instruction::Halt => todo!(),
-            Instruction::AndAHL => todo!(),
-            Instruction::XorAHL => todo!(),
-            Instruction::AndAReg { reg } => todo!(),
-            Instruction::XorAReg { reg } => todo!(),
-            Instruction::OrAHL => todo!(),
-            Instruction::CompareAHL => todo!(),
-            Instruction::OrAReg { reg } => todo!(),
-            Instruction::CompareAReg { reg } => todo!(),
             Instruction::ReturnIfNotZero => todo!(),
             Instruction::JumpIfNotZero { address } => todo!(),
             Instruction::Jump { address } => todo!(),
@@ -907,23 +1248,15 @@ impl Cpu {
             Instruction::ReturnAndEnableInterrupts => todo!(),
             Instruction::JumpIfCarry { address } => todo!(),
             Instruction::CallIfCarry { address } => todo!(),
-            Instruction::AndA { data } => todo!(),
             Instruction::AddSPOffset { offset } => todo!(),
             Instruction::JumpHL => todo!(),
-            Instruction::XorA => todo!(),
             Instruction::DisableInterrupts => todo!(),
-            Instruction::OrA { data } => todo!(),
             Instruction::LoadHLSPOffset { offset } => todo!(),
             Instruction::EnableInterrupts => todo!(),
-            Instruction::CompareA { data } => todo!(),
             Instruction::IncrementReg16 { reg } => todo!(),
-            Instruction::IncrementHighReg { reg } => todo!(),
-            Instruction::DecrementHighReg { reg } => todo!(),
             Instruction::Reset0 { location } => todo!(),
             Instruction::AddHLReg { reg } => todo!(),
             Instruction::DecrementReg16 { reg } => todo!(),
-            Instruction::IncrementLowReg { reg } => todo!(),
-            Instruction::DecrementLowReg { reg } => todo!(),
             Instruction::Reset8 { location } => todo!(),
         }
     }
@@ -934,26 +1267,26 @@ impl Cpu {
 
         result += value as u16;
 
-        self.set_subtraction(false);
         self.set_zero(result & 0x00FF == 0);
+        self.set_subtraction(false);
         self.set_half_carry((self.a & 0x0F) + (value & 0x0F) > 0x0F);
         self.set_carry(result > u8::MAX as u16);
 
         self.a = get_lower_byte(result);
     }
 
-    /// Subtracts `value` from the `A` register and sets the appropriate flags (z1hc)
-    fn overflow_subtraction(&mut self, value: u8) {
+    /// Returns the result of subtracting `value` from the `A` register and sets the appropriate flags (z1hc)
+    fn overflow_subtraction(&mut self, value: u8) -> u8 {
         let mut result = self.a as i16;
 
         result -= value as i16;
 
+        self.set_zero(self.a == value);
         self.set_subtraction(true);
-        self.set_zero(result & 0x00FF == 0);
         self.set_half_carry((self.a & 0x0F) < (value & 0x0F));
         self.set_carry(value > self.a);
 
-        self.a = (result & 0x00FF) as u8;
+        (result & 0x00FF) as u8
     }
 }
 
@@ -1452,9 +1785,9 @@ mod tests {
         let mut cpu = Cpu::new();
 
         cpu.a = 15;
-        cpu.overflow_subtraction(10);
+        let result = cpu.overflow_subtraction(10);
 
-        assert_eq!(cpu.a, 5);
+        assert_eq!(result, 5);
         assert_eq!(cpu.is_zero(), false);
         assert_eq!(cpu.is_subtraction(), true);
         assert_eq!(cpu.is_half_carry(), false);
@@ -1466,9 +1799,9 @@ mod tests {
         let mut cpu = Cpu::new();
 
         cpu.a = 0;
-        cpu.overflow_subtraction(0);
+        let result = cpu.overflow_subtraction(0);
 
-        assert_eq!(cpu.a, 0);
+        assert_eq!(result, 0);
         assert_eq!(cpu.is_zero(), true);
         assert_eq!(cpu.is_subtraction(), true);
         assert_eq!(cpu.is_half_carry(), false);
@@ -1480,9 +1813,9 @@ mod tests {
         let mut cpu = Cpu::new();
 
         cpu.a = 0b0001_0000;
-        cpu.overflow_subtraction(1);
+        let result = cpu.overflow_subtraction(1);
 
-        assert_eq!(cpu.a, 0b0000_1111);
+        assert_eq!(result, 0b0000_1111);
         assert_eq!(cpu.is_zero(), false);
         assert_eq!(cpu.is_subtraction(), true);
         assert_eq!(cpu.is_half_carry(), true);
@@ -1494,13 +1827,587 @@ mod tests {
         let mut cpu = Cpu::new();
 
         cpu.a = 0;
-        cpu.overflow_subtraction(10);
+        let result = cpu.overflow_subtraction(10);
 
-        assert_eq!(cpu.a, 246);
+        assert_eq!(result, 246);
         assert_eq!(cpu.is_zero(), false);
         assert_eq!(cpu.is_subtraction(), true);
         assert_eq!(cpu.is_half_carry(), true);
         assert_eq!(cpu.is_carry(), true);
+    }
+
+    #[test]
+    fn test_and_a_reg() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b0011_0011;
+        cpu.b = 0b0010_1111;
+
+        cpu.execute(
+            Instruction::AndAReg {
+                register: Register::B,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.a, 0b0010_0011);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_and_a_reg_zero() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0;
+        cpu.b = 0xFF;
+
+        cpu.execute(
+            Instruction::AndAReg {
+                register: Register::B,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.a, 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_and_a() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b0011_0011;
+        memory.rom[1] = 0b0010_1111;
+
+        cpu.execute(Instruction::AndA, &mut memory);
+
+        assert_eq!(cpu.a, 0b0010_0011);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 2);
+    }
+
+    #[test]
+    fn test_and_a_zero() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0;
+        memory.rom[1] = 0xFF;
+
+        cpu.execute(Instruction::AndA, &mut memory);
+
+        assert_eq!(cpu.a, 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 2);
+    }
+
+    #[test]
+    fn test_and_a_hl() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b0011_0011;
+        cpu.h = 0x11;
+        cpu.l = 0x00;
+        memory.rom[0x1100] = 0b0010_1111;
+
+        cpu.execute(Instruction::AndAHL, &mut memory);
+
+        assert_eq!(cpu.a, 0b0010_0011);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_and_a_hl_zero() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0;
+        cpu.h = 0x11;
+        cpu.l = 0x00;
+        memory.rom[0x1100] = 0xFF;
+
+        cpu.execute(Instruction::AndAHL, &mut memory);
+
+        assert_eq!(cpu.a, 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_xor_a_reg() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b1010_1010;
+        cpu.b = 0b0101_0101;
+
+        cpu.execute(
+            Instruction::XorAReg {
+                register: Register::B,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.a, 0xFF);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_xor_a_reg_zero() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0xF0;
+        cpu.b = 0xF0;
+
+        cpu.execute(
+            Instruction::XorAReg {
+                register: Register::B,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.a, 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_xor_a() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b1010_1010;
+        memory.rom[1] = 0b0101_0101;
+
+        cpu.execute(Instruction::XorA, &mut memory);
+
+        assert_eq!(cpu.a, 0xFF);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 2);
+    }
+
+    #[test]
+    fn test_xor_a_zero() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0xF0;
+        memory.rom[1] = 0xF0;
+
+        cpu.execute(Instruction::XorA, &mut memory);
+
+        assert_eq!(cpu.a, 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 2);
+    }
+
+    #[test]
+    fn test_xor_a_hl() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b1010_1010;
+        cpu.h = 0x11;
+        cpu.l = 0x00;
+        memory.rom[0x1100] = 0b0101_0101;
+
+        cpu.execute(Instruction::XorAHL, &mut memory);
+
+        assert_eq!(cpu.a, 0xFF);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_xor_a_hl_zero() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0xF0;
+        cpu.h = 0x11;
+        cpu.l = 0x00;
+        memory.rom[0x1100] = 0xF0;
+
+        cpu.execute(Instruction::XorAHL, &mut memory);
+
+        assert_eq!(cpu.a, 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_or_a_reg() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b1010_1010;
+        cpu.b = 0b1111_1111;
+
+        cpu.execute(
+            Instruction::OrAReg {
+                register: Register::B,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.a, 0xFF);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_or_a_reg_zero() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0;
+        cpu.b = 0;
+
+        cpu.execute(
+            Instruction::OrAReg {
+                register: Register::B,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.a, 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_or_a() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b1010_1010;
+        memory.rom[1] = 0b1111_1111;
+
+        cpu.execute(Instruction::OrA, &mut memory);
+
+        assert_eq!(cpu.a, 0xFF);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 2);
+    }
+
+    #[test]
+    fn test_or_a_zero() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0;
+        memory.rom[1] = 0;
+
+        cpu.execute(Instruction::OrA, &mut memory);
+
+        assert_eq!(cpu.a, 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 2);
+    }
+
+    #[test]
+    fn test_or_a_hl() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b1010_1010;
+        cpu.h = 0x11;
+        cpu.l = 0x00;
+        memory.rom[0x1100] = 0b1111_1111;
+
+        cpu.execute(Instruction::OrAHL, &mut memory);
+
+        assert_eq!(cpu.a, 0xFF);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_or_a_hl_zero() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0;
+        cpu.h = 0x11;
+        cpu.l = 0x00;
+        memory.rom[0x1100] = 0;
+
+        cpu.execute(Instruction::OrAHL, &mut memory);
+
+        assert_eq!(cpu.a, 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_inc_r() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.e = 0x0F;
+
+        cpu.execute(
+            Instruction::IncrementReg {
+                register: Register::E,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.e, 0x10);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_inc_r_overflow() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.c = 0xFF;
+
+        cpu.execute(
+            Instruction::IncrementReg {
+                register: Register::C,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.c, 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_inc_hl() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.h = 0x11;
+        cpu.l = 0x00;
+        memory.rom[0x1100] = 0x0F;
+
+        cpu.execute(Instruction::IncrementHL, &mut memory);
+
+        assert_eq!(memory.rom[0x1100], 0x10);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_inc_hl_overflow() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.h = 0x11;
+        cpu.l = 0x00;
+        memory.rom[0x1100] = 0xFF;
+
+        cpu.execute(Instruction::IncrementHL, &mut memory);
+
+        assert_eq!(memory.rom[0x1100], 0);
+        assert_eq!(cpu.is_zero(), true);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_dec_r() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.e = 0x10;
+
+        cpu.execute(
+            Instruction::DecrementReg {
+                register: Register::E,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.e, 0x0f);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), true);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_dec_r_overflow() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.c = 0;
+
+        cpu.execute(
+            Instruction::DecrementReg {
+                register: Register::C,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.c, 0xFF);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), true);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_dec_hl() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.h = 0x11;
+        cpu.l = 0x00;
+        memory.rom[0x1100] = 0x10;
+
+        cpu.execute(Instruction::DecrementHL, &mut memory);
+
+        assert_eq!(memory.rom[0x1100], 0x0F);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), true);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_dec_hl_overflow() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.h = 0x11;
+        cpu.l = 0x00;
+        memory.rom[0x1100] = 0x0;
+
+        cpu.execute(Instruction::DecrementHL, &mut memory);
+
+        assert_eq!(memory.rom[0x1100], 0xFF);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), true);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    // Using a BCD add example of 19 + 28 = 47
+    // 0b0001_1001 + 0b010_1000 = 0b0100_0001 => 0b0100_0111
+    fn test_daa_addition() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b0100_0001;
+        cpu.set_subtraction(false);
+        cpu.set_half_carry(true);
+
+        cpu.execute(Instruction::DecimalAdjustA, &mut memory);
+
+        assert_eq!(cpu.a, 0b0100_0111);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    // Using a BCD subtract example of 47 - 28 = 19
+    // 0b0100_0111 + 0b1101_1000 = 0b0001_1111 => 0b0001_1001
+    fn test_daa_subtraction() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b0001_1111;
+        cpu.set_subtraction(true);
+        cpu.set_half_carry(true);
+
+        cpu.execute(Instruction::DecimalAdjustA, &mut memory);
+
+        assert_eq!(cpu.a, 0b0001_1001);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_half_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_cpl() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.a = 0b1010_1010;
+
+        cpu.execute(Instruction::Complement, &mut memory);
+
+        assert_eq!(cpu.a, 0b0101_0101);
+        assert_eq!(cpu.program_counter, 1);
     }
 
     //------------------------------------
