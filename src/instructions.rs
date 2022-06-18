@@ -24,6 +24,7 @@ pub enum DoubleRegister {
     DE,
     HL,
     AF,
+    SP
 }
 
 #[derive(Debug)]
@@ -177,6 +178,24 @@ pub enum Instruction {
     DecimalAdjustA,
     /// 0x2F - CPL
     Complement,
+
+    // 16-bit Arithmetic/Logic instructions
+    /// 0x{0-3}9 - ADD HL, RR
+    AddHLReg {
+        register: DoubleRegister,
+    },
+    /// 0x{0-3}3 - INC RR
+    IncrementReg16 {
+        register: DoubleRegister,
+    },
+    /// 0x{0-4}B - DEC RR
+    DecrementReg16 {
+        register: DoubleRegister,
+    },
+    /// 0xE8 - ADD SP,r8
+    AddSPOffset,
+    /// 0xF8 - LD HL,SP+r8
+    LoadHLSPOffset,
     //--------------------
     /// 0x00 - NOP
     Nop,
@@ -256,35 +275,15 @@ pub enum Instruction {
     CallIfCarry {
         address: u16,
     },
-    /// 0xE8 - ADD SP,r8
-    AddSPOffset {
-        offset: i8,
-    },
     /// 0xE9 - JP (HL)
     JumpHL,
     /// 0xF3 - DI
     DisableInterrupts,
-    /// 0xF8 - LD HL,SP+r8
-    LoadHLSPOffset {
-        offset: i8,
-    },
     /// 0xFB - EI
     EnableInterrupts,
-    /// 0x{0-3}3 - INC RR
-    IncrementReg16 {
-        reg: u8,
-    },
     /// 0x{C-F}6 - RST x0H
     Reset0 {
         location: u8,
-    },
-    /// 0x{0-3}9 - ADD HL, RR
-    AddHLReg {
-        reg: u8,
-    },
-    /// 0x{0-4}B - DEC RR
-    DecrementReg16 {
-        reg: u8,
     },
     /// 0x{C-F}F - RST x8H
     Reset8 {

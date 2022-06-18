@@ -34,25 +34,37 @@ impl Cpu {
         }
     }
 
+    pub fn bc(&self) -> u16 {
+        combine_bytes(self.b, self.c)
+    }
+
+    pub fn de(&self) -> u16 {
+        combine_bytes(self.d, self.e)
+    }
+
     pub fn hl(&self) -> u16 {
         combine_bytes(self.h, self.l)
     }
 
     fn increment_hl(&mut self) {
-        if self.l == u8::MAX {
+        if self.hl() == u16::MAX {
+            self.h = 0;
             self.l = 0;
-            self.h += 1;
         } else {
-            self.l += 1;
+            let result = self.hl() + 1;
+            self.h = get_upper_byte(result);
+            self.l = get_lower_byte(result);
         }
     }
 
     fn decrement_hl(&mut self) {
-        if self.l == u8::MIN {
+        if self.hl() == 0 {
+            self.h = u8::MAX;
             self.l = u8::MAX;
-            self.h -= 1;
         } else {
-            self.l -= 1;
+            let result = self.hl() - 1;
+            self.h = get_upper_byte(result);
+            self.l = get_lower_byte(result);
         }
     }
 
@@ -403,10 +415,7 @@ impl Cpu {
             (0xE, 0x0) => Instruction::LoadOffsetA,
             (0xE, 0x2) => Instruction::LoadOffsetCA,
             (0xE, 0x6) => Instruction::AndA,
-            (0xE, 0x8) => {
-                let offset = memory.rom[self.program_counter as usize + 1] as i8;
-                Instruction::AddSPOffset { offset }
-            }
+            (0xE, 0x8) => Instruction::AddSPOffset,
             (0xE, 0x9) => Instruction::JumpHL,
             (0xE, 0xA) => Instruction::LoadAddressA,
             (0xE, 0xE) => Instruction::XorA,
@@ -414,10 +423,7 @@ impl Cpu {
             (0xF, 0x2) => Instruction::LoadAOffsetC,
             (0xF, 0x3) => Instruction::DisableInterrupts,
             (0xF, 0x6) => Instruction::OrA,
-            (0xF, 0x8) => {
-                let offset = memory.rom[self.program_counter as usize + 1] as i8;
-                Instruction::LoadHLSPOffset { offset }
-            }
+            (0xF, 0x8) => Instruction::LoadHLSPOffset,
             (0xF, 0x9) => Instruction::LoadSPHL,
             (0xF, 0xA) => Instruction::LoadAAddress,
             (0xF, 0xB) => Instruction::EnableInterrupts,
@@ -440,7 +446,17 @@ impl Cpu {
                     }
                 }
             }
-            (reg, 0x3) => Instruction::IncrementReg16 { reg },
+            (reg, 0x3) => {
+                let registers = [
+                    DoubleRegister::BC,
+                    DoubleRegister::DE,
+                    DoubleRegister::HL,
+                    DoubleRegister::SP,
+                ];
+                Instruction::IncrementReg16 {
+                    register: registers[reg as usize],
+                }
+            }
             (reg, 0x4) => {
                 let registers = [Register::B, Register::D, Register::H];
                 Instruction::IncrementReg {
@@ -477,8 +493,28 @@ impl Cpu {
                     Instruction::Reset0 { location }
                 }
             }
-            (reg, 0x9) => Instruction::AddHLReg { reg },
-            (reg, 0xB) => Instruction::DecrementReg16 { reg },
+            (reg, 0x9) => {
+                let registers = [
+                    DoubleRegister::BC,
+                    DoubleRegister::DE,
+                    DoubleRegister::HL,
+                    DoubleRegister::SP,
+                ];
+                Instruction::AddHLReg {
+                    register: registers[reg as usize],
+                }
+            }
+            (reg, 0xB) => {
+                let registers = [
+                    DoubleRegister::BC,
+                    DoubleRegister::DE,
+                    DoubleRegister::HL,
+                    DoubleRegister::SP,
+                ];
+                Instruction::DecrementReg16 {
+                    register: registers[reg as usize],
+                }
+            }
             (reg, 0xC) => {
                 let registers = [Register::C, Register::E, Register::L, Register::A];
                 Instruction::IncrementReg {
@@ -575,13 +611,11 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::LoadABC => {
-                let address = combine_bytes(self.b, self.c);
-                self.a = memory.read(address);
+                self.a = memory.read(self.bc());
                 self.program_counter += 1;
             }
             Instruction::LoadADE => {
-                let address = combine_bytes(self.d, self.e);
-                self.a = memory.read(address);
+                self.a = memory.read(self.de());
                 self.program_counter += 1;
             }
             Instruction::LoadAAddress => {
@@ -593,13 +627,11 @@ impl Cpu {
                 self.program_counter += 3;
             }
             Instruction::LoadBCA => {
-                let bc = combine_bytes(self.b, self.c);
-                memory.write(bc, self.a);
+                memory.write(self.bc(), self.a);
                 self.program_counter += 1;
             }
             Instruction::LoadDEA => {
-                let de = combine_bytes(self.d, self.e);
-                memory.write(de, self.a);
+                memory.write(self.de(), self.a);
                 self.program_counter += 1;
             }
             Instruction::LoadAddressA => {
@@ -667,7 +699,7 @@ impl Cpu {
                         self.h = upper;
                         self.l = lower;
                     }
-                    DoubleRegister::AF => todo!(),
+                    _ => panic!("Invalid Instruction"),
                 }
 
                 self.program_counter += 3;
@@ -688,16 +720,13 @@ impl Cpu {
                 self.stack_pointer -= 2;
 
                 match register {
-                    DoubleRegister::BC => {
-                        memory.write16(self.stack_pointer, combine_bytes(self.b, self.c))
-                    }
-                    DoubleRegister::DE => {
-                        memory.write16(self.stack_pointer, combine_bytes(self.d, self.e))
-                    }
+                    DoubleRegister::BC => memory.write16(self.stack_pointer, self.bc()),
+                    DoubleRegister::DE => memory.write16(self.stack_pointer, self.de()),
                     DoubleRegister::HL => memory.write16(self.stack_pointer, self.hl()),
                     DoubleRegister::AF => {
                         memory.write16(self.stack_pointer, combine_bytes(self.a, self.f))
                     }
+                    _ => panic!("Invalid Instruction"),
                 }
 
                 self.program_counter += 1;
@@ -723,6 +752,7 @@ impl Cpu {
                         self.a = upper;
                         self.f = lower;
                     }
+                    _ => panic!("Invalid Instruction"),
                 }
 
                 self.stack_pointer += 2;
@@ -1152,6 +1182,157 @@ impl Cpu {
                 self.set_half_carry(true);
                 self.program_counter += 1;
             }
+
+            // 16-bit Arithmetic/Logic instructions
+            Instruction::AddHLReg { register } => {
+                let value: u16;
+                match register {
+                    DoubleRegister::BC => value = self.bc(),
+                    DoubleRegister::DE => value = self.de(),
+                    DoubleRegister::HL => value = self.hl(),
+                    DoubleRegister::SP => value = self.stack_pointer,
+                    _ => panic!("Invalid Instruction"),
+                }
+
+                let lower_result = self.l as u16 + get_lower_byte(value) as u16;
+                let lower_carry = if lower_result > 0x00FF { 1 } else { 0 };
+
+                self.l = get_lower_byte(lower_result);
+
+                let upper_value = get_upper_byte(value) as u16 + lower_carry;
+                let upper_result = self.h as u16 + upper_value;
+
+                self.set_subtraction(false);
+                self.set_half_carry((self.h & 0x0F) + (upper_value & 0x000F) as u8 > 0x0F);
+                self.set_carry(upper_result > 0x00FF);
+
+                self.h = get_lower_byte(upper_result);
+                self.program_counter += 1;
+            }
+            Instruction::IncrementReg16 { register } => {
+                match register {
+                    DoubleRegister::BC => {
+                        if self.bc() == u16::MAX {
+                            self.b = 0;
+                            self.c = 0;
+                        } else {
+                            let result = self.bc() + 1;
+                            self.b = get_upper_byte(result);
+                            self.c = get_lower_byte(result);
+                        }
+                    }
+                    DoubleRegister::DE => {
+                        if self.de() == u16::MAX {
+                            self.d = 0;
+                            self.e = 0;
+                        } else {
+                            let result = self.de() + 1;
+                            self.d = get_upper_byte(result);
+                            self.e = get_lower_byte(result);
+                        }
+                    }
+                    DoubleRegister::HL => self.increment_hl(),
+                    DoubleRegister::SP => {
+                        if self.stack_pointer == u16::MAX {
+                            self.stack_pointer = 0;
+                        } else {
+                            self.stack_pointer += 1;
+                        }
+                    }
+                    _ => panic!("Invalid Instruction"),
+                };
+                self.program_counter += 1;
+            }
+            Instruction::DecrementReg16 { register } => {
+                match register {
+                    DoubleRegister::BC => {
+                        if self.bc() == 0 {
+                            self.b = u8::MAX;
+                            self.c = u8::MAX;
+                        } else {
+                            let result = self.bc() - 1;
+                            self.b = get_upper_byte(result);
+                            self.c = get_lower_byte(result);
+                        }
+                    }
+                    DoubleRegister::DE => {
+                        if self.de() == 0 {
+                            self.d = u8::MAX;
+                            self.e = u8::MAX;
+                        } else {
+                            let result = self.de() - 1;
+                            self.d = get_upper_byte(result);
+                            self.e = get_lower_byte(result);
+                        }
+                    }
+                    DoubleRegister::HL => self.decrement_hl(),
+                    DoubleRegister::SP => {
+                        if self.stack_pointer == 0 {
+                            self.stack_pointer = u16::MAX;
+                        } else {
+                            self.stack_pointer -= 1;
+                        }
+                    }
+                    _ => panic!("Invalid Instruction"),
+                };
+                self.program_counter += 1;
+            }
+            Instruction::AddSPOffset => {
+                let offset = memory.rom[self.program_counter as usize + 1] as i8;
+
+                self.set_zero(false);
+                self.set_subtraction(false);
+
+                let abs_offset = offset.abs() as u16;
+
+                if offset > 0 {
+                    let result = self.stack_pointer as u32 + offset as u32;
+                    self.set_half_carry((self.stack_pointer & 0x0FFF) + (abs_offset & 0x0FFF) > 0x0FFF);
+                    self.set_carry(result > 0xFFFF);
+                    self.stack_pointer = (result & 0x0000_FFFF) as u16;
+                } else if abs_offset > self.stack_pointer {
+                    self.set_half_carry((self.stack_pointer & 0x0FFF) < (abs_offset & 0x0FFF));
+                    self.set_carry(true);
+                    self.stack_pointer = u16::MAX - (abs_offset - self.stack_pointer);
+                } else {
+                    self.set_half_carry((self.stack_pointer & 0x0FFF) < (abs_offset & 0x0FFF));
+                    self.set_carry(false);
+                    self.stack_pointer -= abs_offset;
+                }
+
+                self.program_counter += 2;
+            }
+            Instruction::LoadHLSPOffset => {
+                let offset = memory.rom[self.program_counter as usize + 1] as i8;
+
+                self.set_zero(false);
+                self.set_subtraction(false);
+
+                let abs_offset = offset.abs() as u16;
+
+                if offset > 0 {
+                    let result = self.stack_pointer as u32 + offset as u32;
+                    self.set_half_carry((self.stack_pointer & 0x0FFF) + (abs_offset & 0x0FFF) > 0x0FFF);
+                    self.set_carry(result > 0xFFFF);
+                    let result_16 = (result & 0x0000_FFFF) as u16;
+                    self.h = get_upper_byte(result_16);
+                    self.l = get_lower_byte(result_16);
+                } else if abs_offset > self.stack_pointer {
+                    self.set_half_carry((self.stack_pointer & 0x0FFF) < (abs_offset & 0x0FFF));
+                    self.set_carry(true);
+                    let result = u16::MAX - (abs_offset - self.stack_pointer);
+                    self.h = get_upper_byte(result);
+                    self.l = get_lower_byte(result);
+                } else {
+                    self.set_half_carry((self.stack_pointer & 0x0FFF) < (abs_offset & 0x0FFF));
+                    self.set_carry(false);
+                    let result = self.stack_pointer - abs_offset;
+                    self.h = get_upper_byte(result);
+                    self.l = get_lower_byte(result);
+                }
+
+                self.program_counter += 2;
+            },
             //-----------------------------
             Instruction::Invalid => todo!(),
             Instruction::Nop => {
@@ -1248,15 +1429,10 @@ impl Cpu {
             Instruction::ReturnAndEnableInterrupts => todo!(),
             Instruction::JumpIfCarry { address } => todo!(),
             Instruction::CallIfCarry { address } => todo!(),
-            Instruction::AddSPOffset { offset } => todo!(),
             Instruction::JumpHL => todo!(),
             Instruction::DisableInterrupts => todo!(),
-            Instruction::LoadHLSPOffset { offset } => todo!(),
             Instruction::EnableInterrupts => todo!(),
-            Instruction::IncrementReg16 { reg } => todo!(),
             Instruction::Reset0 { location } => todo!(),
-            Instruction::AddHLReg { reg } => todo!(),
-            Instruction::DecrementReg16 { reg } => todo!(),
             Instruction::Reset8 { location } => todo!(),
         }
     }
@@ -2410,6 +2586,199 @@ mod tests {
         assert_eq!(cpu.program_counter, 1);
     }
 
+    // 16-bit arithmetic/logic instruction tests
+
+    #[test]
+    fn test_add_hl_rr() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.h = 0x0F;
+        cpu.l = 0xFF;
+        cpu.d = 0x00;
+        cpu.e = 0x02;
+
+        cpu.execute(
+            Instruction::AddHLReg {
+                register: DoubleRegister::DE,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.hl(), 0x1001);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), false);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_add_hl_rr_overflow() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.h = 0xFF;
+        cpu.l = 0xFF;
+        cpu.b = 0x00;
+        cpu.c = 0x02;
+
+        cpu.execute(
+            Instruction::AddHLReg {
+                register: DoubleRegister::BC,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.hl(), 1);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), true);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_inc_rr() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.d = 0x00;
+        cpu.e = 0xFF;
+
+        cpu.execute(
+            Instruction::IncrementReg16 {
+                register: DoubleRegister::DE,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.de(), 0x0100);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_inc_rr_overflow() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.b = 0xFF;
+        cpu.c = 0xFF;
+
+        cpu.execute(
+            Instruction::IncrementReg16 {
+                register: DoubleRegister::BC,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.bc(), 0);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_dec_rr() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.d = 0x01;
+        cpu.e = 0x00;
+
+        cpu.execute(
+            Instruction::DecrementReg16 {
+                register: DoubleRegister::DE,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.de(), 0x00FF);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_dec_rr_overflow() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.b = 0x00;
+        cpu.c = 0x00;
+
+        cpu.execute(
+            Instruction::DecrementReg16 {
+                register: DoubleRegister::BC,
+            },
+            &mut memory,
+        );
+
+        assert_eq!(cpu.bc(), 0xFFFF);
+        assert_eq!(cpu.program_counter, 1);
+    }
+
+    #[test]
+    fn test_add_sp_offset_postive() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.stack_pointer = 0xFFFF;
+        memory.rom[1] = 1;
+        cpu.execute(Instruction::AddSPOffset, &mut memory);
+
+        assert_eq!(cpu.stack_pointer, 0);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), true);
+        assert_eq!(cpu.program_counter, 2);
+    }
+
+    #[test]
+    fn test_add_sp_offset_negative() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.stack_pointer = 5;
+        memory.rom[1] = (-10 as i8) as u8;
+        cpu.execute(Instruction::AddSPOffset, &mut memory);
+
+        assert_eq!(cpu.stack_pointer, 0xFFFF - 5);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), true);
+        assert_eq!(cpu.program_counter, 2);
+    }
+
+    #[test]
+    fn test_load_hl_sp_offset_postive() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.stack_pointer = 0xFFFF;
+        memory.rom[1] = 1;
+        cpu.execute(Instruction::LoadHLSPOffset, &mut memory);
+
+        assert_eq!(cpu.hl(), 0);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), true);
+        assert_eq!(cpu.program_counter, 2);
+    }
+
+    #[test]
+    fn test_load_hl_sp_offset_negative() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.stack_pointer = 5;
+        memory.rom[1] = (-10 as i8) as u8;
+        cpu.execute(Instruction::LoadHLSPOffset, &mut memory);
+
+        assert_eq!(cpu.hl(), 0xFFFF - 5);
+        assert_eq!(cpu.is_zero(), false);
+        assert_eq!(cpu.is_subtraction(), false);
+        assert_eq!(cpu.is_half_carry(), true);
+        assert_eq!(cpu.is_carry(), true);
+        assert_eq!(cpu.program_counter, 2);
+    }
     //------------------------------------
     #[test]
     fn test_nop() {
