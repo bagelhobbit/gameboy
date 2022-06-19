@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConditionalFlag {
     NZ,
     Z,
@@ -6,7 +6,7 @@ pub enum ConditionalFlag {
     C,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Register {
     B,
     C,
@@ -17,7 +17,7 @@ pub enum Register {
     A,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DoubleRegister {
     BC,
     DE,
@@ -26,7 +26,7 @@ pub enum DoubleRegister {
     SP,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Instruction {
     Invalid,
     // 8-bit load instructions

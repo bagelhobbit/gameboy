@@ -227,6 +227,7 @@ impl Cpu {
                         Register::E,
                         Register::H,
                         Register::L,
+                        Register::A, // Duplicate entry to pad HALT (0x76)
                         Register::A,
                     ];
                     Instruction::LoadHLReg {
@@ -393,17 +394,23 @@ impl Cpu {
             (0xF, 0xB) => Instruction::EnableInterrupts,
             (0xF, 0xE) => Instruction::CompareA,
             (reg, 0x1) => {
-                let registers = [
-                    DoubleRegister::BC,
-                    DoubleRegister::DE,
-                    DoubleRegister::HL,
-                    DoubleRegister::AF,
-                ];
                 if reg < 4 {
+                    let registers = [
+                        DoubleRegister::BC,
+                        DoubleRegister::DE,
+                        DoubleRegister::HL,
+                        DoubleRegister::SP,
+                    ];
                     Instruction::LoadReg16 {
                         register: registers[reg as usize],
                     }
                 } else {
+                    let registers = [
+                        DoubleRegister::BC,
+                        DoubleRegister::DE,
+                        DoubleRegister::HL,
+                        DoubleRegister::AF,
+                    ];
                     let index = reg as usize - 0xC;
                     Instruction::PopReg {
                         register: registers[index],
@@ -914,6 +921,9 @@ impl Cpu {
                     DoubleRegister::HL => {
                         self.h = upper;
                         self.l = lower;
+                    },
+                    DoubleRegister::SP => {
+                        self.stack_pointer = combine_bytes(lower, upper);
                     }
                     _ => panic!("Invalid Instruction"),
                 }
@@ -2054,16 +2064,18 @@ impl Cpu {
                 }
             }
             Instruction::Call => {
-                let high = memory.read(self.program_counter + 1);
-                let low = memory.read(self.program_counter + 2);
+                let low = memory.read(self.program_counter + 1);
+                let high = memory.read(self.program_counter + 2);
+
+                println!("SP: 0x{:0>4X?}", self.stack_pointer);
 
                 self.stack_pointer -= 2;
                 memory.write16(self.stack_pointer, self.program_counter);
                 self.program_counter = combine_bytes(high, low);
             }
             Instruction::CallConditinal { flag } => {
-                let high = memory.read(self.program_counter + 1);
-                let low = memory.read(self.program_counter + 2);
+                let low = memory.read(self.program_counter + 1);
+                let high = memory.read(self.program_counter + 2);
 
                 let predicate = match flag {
                     ConditionalFlag::NZ => !self.is_zero(),

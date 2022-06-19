@@ -330,8 +330,8 @@ fn test_load_reg_16() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    memory.rom[1] = 0xEE;
-    memory.rom[2] = 0x55;
+    memory.rom[1] = 0x55;
+    memory.rom[2] = 0xEE;
 
     cpu.execute(
         Instruction::LoadReg16 {
@@ -2031,8 +2031,8 @@ fn test_call() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    memory.rom[1] = 0x11;
-    memory.rom[2] = 0x00;
+    memory.rom[1] = 0x00;
+    memory.rom[2] = 0x11;
     memory.write(0xFFFC, 0xFF);
     cpu.execute(Instruction::Call, &mut memory);
 
@@ -2047,8 +2047,8 @@ fn test_call_conditional() {
     let mut memory = Memory::new();
     let flag = ConditionalFlag::NC;
 
-    memory.rom[1] = 0x11;
-    memory.rom[2] = 0x00;
+    memory.rom[1] = 0x00;
+    memory.rom[2] = 0x11;
     memory.write(0xFFFC, 0xFF);
     cpu.execute(Instruction::CallConditinal { flag }, &mut memory);
 

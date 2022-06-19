@@ -1,14 +1,15 @@
+use crate::{cpu::Cpu, instructions::Instruction, memory::Memory};
 use std::{env, fs};
-
-use crate::{cpu::Cpu, memory::Memory};
 
 mod cpu;
 mod instructions;
+mod io_registers;
 mod memory;
+mod tile_info;
 mod util;
-fn main() {
-    println!("Hello, world!");
+mod vram;
 
+fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() == 1 {
@@ -18,13 +19,27 @@ fn main() {
 
     let filename = &args[1];
 
-    let _contents = fs::read(filename).expect("Error reading the given filename");
+    let contents = fs::read(filename).expect("Error reading the given filename");
 
     let mut cpu = Cpu::new();
 
     let mut memory = Memory::new();
 
-    let instruction = cpu.parse(&memory);
+    memory.rom[0..contents.len()].clone_from_slice(&contents[..]);
 
-    cpu.execute(instruction, &mut memory);
+    loop {
+        let instruction = cpu.parse(&memory);
+
+        if instruction != Instruction::Nop {
+            println!("{:?} - 0x{:0>2X?} - {:?}", cpu.program_counter, memory.read(cpu.program_counter), instruction);
+            // println!("SP: {:0>4X?}", cpu.stack_pointer);
+            // println!("HL: {:0>4X?}", cpu.hl());
+        }
+
+        if instruction == Instruction::Invalid {
+            break;
+        }
+
+        cpu.execute(instruction, &mut memory);
+    }
 }
