@@ -4,6 +4,8 @@ use crate::{
     util::*,
 };
 
+mod cpu_tests;
+
 #[derive(Debug)]
 pub struct Cpu {
     pub b: u8,
@@ -363,7 +365,7 @@ impl Cpu {
                 let address = ((high as u16) << 8) + low as u16;
                 Instruction::JumpIfZero { address }
             }
-            (0xC, 0xB) => Instruction::Prefix { op: 0 },
+            (0xC, 0xB) => self.parse_prefix(memory),
             (0xC, 0xC) => {
                 let high = memory.rom[self.program_counter as usize + 1];
                 let low = memory.rom[self.program_counter as usize + 2];
@@ -534,6 +536,106 @@ impl Cpu {
                 }
             }
             (location, 0xF) => Instruction::Reset8 { location },
+            _ => Instruction::Invalid,
+        }
+    }
+
+    fn parse_prefix(&mut self, memory: &Memory) -> Instruction {
+        let instruction = memory.rom[self.program_counter as usize + 1];
+
+        match (get_upper_bits(instruction), get_lower_bits(instruction)) {
+            (0x0, 0x6) => Instruction::RotateHLLeft,
+            (0x0, 0xE) => Instruction::RotateHLRight,
+            (0x0, reg) => {
+                let registers = [
+                    Register::B,
+                    Register::C,
+                    Register::D,
+                    Register::E,
+                    Register::H,
+                    Register::L,
+                    Register::A, //Duplicate entry to pad RL/RR (HL)
+                    Register::A,
+                ];
+                if reg < 8 {
+                    Instruction::RotateLeft {
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::RotateRight {
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0x1, 0x6) => Instruction::RotateHLLeftThroughCarry,
+            (0x1, 0xE) => Instruction::RotateHLRightThroughCarry,
+            (0x1, reg) => {
+                let registers = [
+                    Register::B,
+                    Register::C,
+                    Register::D,
+                    Register::E,
+                    Register::H,
+                    Register::L,
+                    Register::A, //Duplicate entry to pad RLC/RRC (HL)
+                    Register::A,
+                ];
+                if reg < 8 {
+                    Instruction::RotateLeftThroughCarry {
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::RotateRightThroughCarry {
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0x2, 0x6) => Instruction::ShiftHLLeftArithmetic,
+            (0x2, 0xE) => Instruction::ShiftHLRightArithmetic,
+            (0x2, reg) => {
+                let registers = [
+                    Register::B,
+                    Register::C,
+                    Register::D,
+                    Register::E,
+                    Register::H,
+                    Register::L,
+                    Register::A, //Duplicate entry to pad SLA/SRA (HL)
+                    Register::A,
+                ];
+                if reg < 8 {
+                    Instruction::ShiftLeftArithmetic {
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::ShiftRightArithmetic {
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0x3, 0x6) => Instruction::SwapHL,
+            (0x3, 0xE) => Instruction::ShiftHLRightLogical,
+            (0x3, reg) => {
+                let registers = [
+                    Register::B,
+                    Register::C,
+                    Register::D,
+                    Register::E,
+                    Register::H,
+                    Register::L,
+                    Register::A, //Duplicate entry to pad SWAP/SRL (HL)
+                    Register::A,
+                ];
+                if reg < 8 {
+                    Instruction::Swap {
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::ShiftRightLogical {
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
             _ => Instruction::Invalid,
         }
     }
@@ -1287,7 +1389,9 @@ impl Cpu {
 
                 if offset > 0 {
                     let result = self.stack_pointer as u32 + offset as u32;
-                    self.set_half_carry((self.stack_pointer & 0x0FFF) + (abs_offset & 0x0FFF) > 0x0FFF);
+                    self.set_half_carry(
+                        (self.stack_pointer & 0x0FFF) + (abs_offset & 0x0FFF) > 0x0FFF,
+                    );
                     self.set_carry(result > 0xFFFF);
                     self.stack_pointer = (result & 0x0000_FFFF) as u16;
                 } else if abs_offset > self.stack_pointer {
@@ -1312,7 +1416,9 @@ impl Cpu {
 
                 if offset > 0 {
                     let result = self.stack_pointer as u32 + offset as u32;
-                    self.set_half_carry((self.stack_pointer & 0x0FFF) + (abs_offset & 0x0FFF) > 0x0FFF);
+                    self.set_half_carry(
+                        (self.stack_pointer & 0x0FFF) + (abs_offset & 0x0FFF) > 0x0FFF,
+                    );
                     self.set_carry(result > 0xFFFF);
                     let result_16 = (result & 0x0000_FFFF) as u16;
                     self.h = get_upper_byte(result_16);
@@ -1332,57 +1438,370 @@ impl Cpu {
                 }
 
                 self.program_counter += 2;
-            },
-            //-----------------------------
-            Instruction::Invalid => todo!(),
-            Instruction::Nop => {
-                self.program_counter += 1;
             }
+
+            // Rotate and Shift instructions
             Instruction::RotateALeft => {
-                let msb = self.a & 0b1000_0000;
-                let carry = msb >> 7;
-                self.a = (self.a << 1) + carry;
+                self.a = self.rotate_left(self.a);
 
                 self.set_zero(false);
                 self.set_subtraction(false);
                 self.set_half_carry(false);
-                self.set_carry(carry == 1);
 
                 self.program_counter += 1;
             }
             Instruction::RotateALeftThroughCarry => {
-                let msb = self.a & 0b1000_0000;
-                let carry = if self.is_carry() { 1 } else { 0 };
-                self.a = (self.a << 1) + carry;
+                self.a = self.rotate_left_through_carry(self.a);
 
                 self.set_zero(false);
                 self.set_subtraction(false);
                 self.set_half_carry(false);
-                self.set_carry((msb >> 7) == 1);
 
                 self.program_counter += 1;
             }
             Instruction::RotateARight => {
-                let lsb = self.a & 0b0000_0001;
-                self.a = (self.a >> 1) + (lsb << 7);
+                self.a = self.rotate_right(self.a);
 
                 self.set_zero(false);
                 self.set_subtraction(false);
                 self.set_half_carry(false);
-                self.set_carry(lsb == 1);
 
                 self.program_counter += 1;
             }
             Instruction::RotateARightThroughCarry => {
-                let lsb = self.a & 0b0000_0001;
-                let carry = if self.is_carry() { 0b1000_0000 } else { 0 };
-                self.a = (self.a >> 1) + carry;
+                self.a = self.rotate_right_through_carry(self.a);
 
                 self.set_zero(false);
                 self.set_subtraction(false);
                 self.set_half_carry(false);
-                self.set_carry(lsb == 1);
 
+                self.program_counter += 1;
+            }
+            Instruction::RotateLeft { register } => {
+                match register {
+                    Register::B => {
+                        self.b = self.rotate_left(self.b);
+                        self.set_zero(self.b == 0);
+                    }
+                    Register::C => {
+                        self.c = self.rotate_left(self.c);
+                        self.set_zero(self.c == 0);
+                    }
+                    Register::D => {
+                        self.d = self.rotate_left(self.d);
+                        self.set_zero(self.d == 0);
+                    }
+                    Register::E => {
+                        self.e = self.rotate_left(self.e);
+                        self.set_zero(self.e == 0);
+                    }
+                    Register::H => {
+                        self.h = self.rotate_left(self.h);
+                        self.set_zero(self.h == 0);
+                    }
+                    Register::L => {
+                        self.l = self.rotate_left(self.l);
+                        self.set_zero(self.l == 0);
+                    }
+                    Register::A => {
+                        self.a = self.rotate_left(self.a);
+                        self.set_zero(self.a == 0);
+                    }
+                }
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::RotateHLLeft => {
+                let data = memory.read(self.hl());
+                let result = self.rotate_left(data);
+                memory.write(self.hl(), result);
+
+                self.set_zero(result == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::RotateLeftThroughCarry { register } => {
+                match register {
+                    Register::B => {
+                        self.b = self.rotate_left_through_carry(self.b);
+                        self.set_zero(self.b == 0);
+                    }
+                    Register::C => {
+                        self.c = self.rotate_left_through_carry(self.c);
+                        self.set_zero(self.c == 0);
+                    }
+                    Register::D => {
+                        self.d = self.rotate_left_through_carry(self.d);
+                        self.set_zero(self.d == 0);
+                    }
+                    Register::E => {
+                        self.e = self.rotate_left_through_carry(self.e);
+                        self.set_zero(self.e == 0);
+                    }
+                    Register::H => {
+                        self.h = self.rotate_left_through_carry(self.h);
+                        self.set_zero(self.h == 0);
+                    }
+                    Register::L => {
+                        self.l = self.rotate_left_through_carry(self.l);
+                        self.set_zero(self.l == 0);
+                    }
+                    Register::A => {
+                        self.a = self.rotate_left_through_carry(self.a);
+                        self.set_zero(self.a == 0);
+                    }
+                }
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::RotateHLLeftThroughCarry => {
+                let data = memory.read(self.hl());
+                let result = self.rotate_left_through_carry(data);
+                memory.write(self.hl(), result);
+
+                self.set_zero(result == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::RotateRight { register } => {
+                match register {
+                    Register::B => {
+                        self.b = self.rotate_right(self.b);
+                        self.set_zero(self.b == 0);
+                    }
+                    Register::C => {
+                        self.c = self.rotate_right(self.c);
+                        self.set_zero(self.c == 0);
+                    }
+                    Register::D => {
+                        self.d = self.rotate_right(self.d);
+                        self.set_zero(self.d == 0);
+                    }
+                    Register::E => {
+                        self.e = self.rotate_right(self.e);
+                        self.set_zero(self.e == 0);
+                    }
+                    Register::H => {
+                        self.h = self.rotate_right(self.h);
+                        self.set_zero(self.h == 0);
+                    }
+                    Register::L => {
+                        self.l = self.rotate_right(self.l);
+                        self.set_zero(self.l == 0);
+                    }
+                    Register::A => {
+                        self.a = self.rotate_right(self.a);
+                        self.set_zero(self.a == 0);
+                    }
+                }
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::RotateHLRight => {
+                let data = memory.read(self.hl());
+                let result = self.rotate_right(data);
+                memory.write(self.hl(), result);
+
+                self.set_zero(result == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::RotateRightThroughCarry { register } => {
+                match register {
+                    Register::B => {
+                        self.b = self.rotate_right_through_carry(self.b);
+                        self.set_zero(self.b == 0);
+                    }
+                    Register::C => {
+                        self.c = self.rotate_right_through_carry(self.c);
+                        self.set_zero(self.c == 0);
+                    }
+                    Register::D => {
+                        self.d = self.rotate_right_through_carry(self.d);
+                        self.set_zero(self.d == 0);
+                    }
+                    Register::E => {
+                        self.e = self.rotate_right_through_carry(self.e);
+                        self.set_zero(self.e == 0);
+                    }
+                    Register::H => {
+                        self.h = self.rotate_right_through_carry(self.h);
+                        self.set_zero(self.h == 0);
+                    }
+                    Register::L => {
+                        self.l = self.rotate_right_through_carry(self.l);
+                        self.set_zero(self.l == 0);
+                    }
+                    Register::A => {
+                        self.a = self.rotate_right_through_carry(self.a);
+                        self.set_zero(self.a == 0);
+                    }
+                }
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::RotateHLRightThroughCarry => {
+                let data = memory.read(self.hl());
+                let result = self.rotate_right_through_carry(data);
+                memory.write(self.hl(), result);
+
+                self.set_zero(result == 0);
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::ShiftLeftArithmetic { register } => {
+                match register {
+                    Register::B => {
+                        self.b = self.shift_left(self.b);
+                    }
+                    Register::C => {
+                        self.c = self.shift_left(self.c);
+                    }
+                    Register::D => {
+                        self.d = self.shift_left(self.d);
+                    }
+                    Register::E => {
+                        self.e = self.shift_left(self.e);
+                    }
+                    Register::H => {
+                        self.h = self.shift_left(self.h);
+                    }
+                    Register::L => {
+                        self.l = self.shift_left(self.l);
+                    }
+                    Register::A => {
+                        self.a = self.shift_left(self.a);
+                    }
+                }
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::ShiftHLLeftArithmetic => {
+                let data = memory.read(self.hl());
+                memory.write(self.hl(), self.shift_left(data));
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::Swap { register } => {
+                match register {
+                    Register::B => {
+                        self.b = self.swap(self.b);
+                    }
+                    Register::C => {
+                        self.c = self.swap(self.c);
+                    }
+                    Register::D => {
+                        self.d = self.swap(self.d);
+                    }
+                    Register::E => {
+                        self.e = self.swap(self.e);
+                    }
+                    Register::H => {
+                        self.h = self.swap(self.h);
+                    }
+                    Register::L => {
+                        self.l = self.swap(self.l);
+                    }
+                    Register::A => {
+                        self.a = self.swap(self.a);
+                    }
+                }
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+                self.set_carry(false);
+                self.program_counter += 2;
+            }
+            Instruction::SwapHL => {
+                let data = memory.read(self.hl());
+                memory.write(self.hl(), self.swap(data));
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+                self.set_carry(false);
+                self.program_counter += 2;
+            }
+            Instruction::ShiftRightArithmetic { register } => {
+                match register {
+                    Register::B => self.b = self.shift_right_arithmetic(self.b),
+                    Register::C => self.c = self.shift_right_arithmetic(self.c),
+                    Register::D => self.d = self.shift_right_arithmetic(self.d),
+                    Register::E => self.e = self.shift_right_arithmetic(self.e),
+                    Register::H => self.h = self.shift_right_arithmetic(self.h),
+                    Register::L => self.l = self.shift_right_arithmetic(self.l),
+                    Register::A => self.a = self.shift_right_arithmetic(self.a),
+                }
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::ShiftHLRightArithmetic => {
+                let data = memory.read(self.hl());
+                memory.write(self.hl(), self.shift_right_arithmetic(data));
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::ShiftRightLogical { register } => {
+                match register {
+                    Register::B => self.b = self.shift_right_logical(self.b),
+                    Register::C => self.c = self.shift_right_logical(self.c),
+                    Register::D => self.d = self.shift_right_logical(self.d),
+                    Register::E => self.e = self.shift_right_logical(self.e),
+                    Register::H => self.h = self.shift_right_logical(self.h),
+                    Register::L => self.l = self.shift_right_logical(self.l),
+                    Register::A => self.a = self.shift_right_logical(self.a),
+                }
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            Instruction::ShiftHLRightLogical => {
+                let data = memory.read(self.hl());
+                memory.write(self.hl(), self.shift_right_logical(data));
+
+                self.set_subtraction(false);
+                self.set_half_carry(false);
+
+                self.program_counter += 2;
+            }
+            
+            // Single-bit operation instructions
+            //-----------------------------
+            Instruction::Invalid => todo!(),
+            Instruction::Nop => {
                 self.program_counter += 1;
             }
             Instruction::Stop => todo!(),
@@ -1418,7 +1837,6 @@ impl Cpu {
             Instruction::CallIfNotZero { address } => todo!(),
             Instruction::ReturnIfZero => todo!(),
             Instruction::Return => todo!(),
-            Instruction::Prefix { op } => todo!(),
             Instruction::JumpIfZero { address } => todo!(),
             Instruction::CallIfZero { address } => todo!(),
             Instruction::Call { address } => todo!(),
@@ -1464,1447 +1882,93 @@ impl Cpu {
 
         (result & 0x00FF) as u8
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+    /// Returns the left rotated value and sets the carry flag
+    fn rotate_left(&mut self, value: u8) -> u8 {
+        let msb = value & 0b1000_0000;
+        let carry = msb >> 7;
+        let result = (value << 1) + carry;
 
-    // 8-bit load instruction tests
+        self.set_carry(carry == 1);
 
-    #[test]
-    fn test_load_reg() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.b = 0x11;
-        cpu.d = 0xE5;
-
-        cpu.execute(
-            Instruction::LoadReg {
-                load_from: 2,
-                load_into: Register::B,
-            },
-            &mut memory,
-        );
-        cpu.execute(
-            Instruction::LoadReg {
-                load_from: 8,
-                load_into: Register::L,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.b, cpu.d);
-        assert_eq!(cpu.l, cpu.b);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_load_reg_8() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        memory.rom[1] = 0xE5;
-
-        cpu.execute(
-            Instruction::LoadReg8 {
-                register: Register::B,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.b, 0xE5);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_load_reg_hl() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0xE5;
-
-        cpu.execute(
-            Instruction::LoadRegHL {
-                register: Register::B,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.b, 0xE5);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_hl_reg() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        cpu.b = 0xE5;
-
-        cpu.execute(
-            Instruction::LoadHLReg {
-                register: Register::B,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(memory.rom[0x1100], 0xE5);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_hl_8() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[1] = 0xE5;
-
-        cpu.execute(Instruction::LoadHL8, &mut memory);
-
-        assert_eq!(memory.rom[0x1100], 0xE5);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_load_a_bc() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.b = 0x11;
-        cpu.c = 0x00;
-        memory.rom[0x1100] = 0xE5;
-
-        cpu.execute(Instruction::LoadABC, &mut memory);
-
-        assert_eq!(cpu.a, 0xE5);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_a_de() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.d = 0x11;
-        cpu.e = 0x00;
-        memory.rom[0x1100] = 0xE5;
-
-        cpu.execute(Instruction::LoadADE, &mut memory);
-
-        assert_eq!(cpu.a, 0xE5);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_a_address() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        memory.rom[1] = 0x11;
-        memory.rom[2] = 0x00;
-        memory.rom[0x1100] = 0xE5;
-
-        cpu.execute(Instruction::LoadAAddress, &mut memory);
-
-        assert_eq!(cpu.a, 0xE5);
-        assert_eq!(cpu.program_counter, 3);
-    }
-
-    #[test]
-    fn test_load_bc_a() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0xE5;
-        cpu.b = 0x11;
-        cpu.c = 0x00;
-
-        cpu.execute(Instruction::LoadBCA, &mut memory);
-
-        assert_eq!(memory.rom[combine_bytes(cpu.b, cpu.c) as usize], cpu.a);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_de_a() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0xE5;
-        cpu.d = 0x11;
-        cpu.e = 0x00;
-
-        cpu.execute(Instruction::LoadDEA, &mut memory);
-
-        assert_eq!(memory.rom[combine_bytes(cpu.d, cpu.e) as usize], cpu.a);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_address_a() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0xE5;
-        memory.rom[1] = 0x11;
-        memory.rom[2] = 0x00;
-
-        cpu.execute(Instruction::LoadAddressA, &mut memory);
-
-        assert_eq!(memory.rom[0x1100], cpu.a);
-        assert_eq!(cpu.program_counter, 3);
-    }
-
-    #[test]
-    fn test_load_a_offset() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        memory.rom[1] = 0x01;
-        memory.io_registers[1] = 0xE5;
-
-        cpu.execute(Instruction::LoadAOffset, &mut memory);
-
-        assert_eq!(cpu.a, 0xE5);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_load_offset_a() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0xE5;
-        memory.rom[1] = 0x01;
-
-        cpu.execute(Instruction::LoadOffsetA, &mut memory);
-
-        assert_eq!(memory.io_registers[1], 0xE5);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_load_a_offset_c() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.c = 0x01;
-        memory.io_registers[1] = 0xE5;
-
-        cpu.execute(Instruction::LoadAOffsetC, &mut memory);
-
-        assert_eq!(cpu.a, 0xE5);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_offset_c_a() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0xE5;
-        cpu.c = 0x01;
-
-        cpu.execute(Instruction::LoadOffsetCA, &mut memory);
-
-        assert_eq!(memory.io_registers[1], 0xE5);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_inc_hl_a() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0xE5;
-        cpu.h = 0x00;
-        cpu.l = 0xFF;
-
-        cpu.execute(Instruction::LoadIncrementHLA, &mut memory);
-
-        assert_eq!(memory.rom[0x00FF], 0xE5);
-        assert_eq!(cpu.h, 1);
-        assert_eq!(cpu.l, 0);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_inc_a_hl() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0x00;
-        cpu.l = 0xFF;
-        memory.rom[0x00FF] = 0xE5;
-
-        cpu.execute(Instruction::LoadIncrementAHL, &mut memory);
-
-        assert_eq!(cpu.a, 0xE5);
-        assert_eq!(cpu.h, 1);
-        assert_eq!(cpu.l, 0);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_dec_hl_a() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0xE5;
-        cpu.h = 0x01;
-        cpu.l = 0x00;
-
-        cpu.execute(Instruction::LoadDecrementHLA, &mut memory);
-
-        assert_eq!(memory.rom[0x0100], 0xE5);
-        assert_eq!(cpu.h, 0);
-        assert_eq!(cpu.l, 0xFF);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_load_dec_a_hl() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0x01;
-        cpu.l = 0x00;
-        memory.rom[0x0100] = 0xE5;
-
-        cpu.execute(Instruction::LoadDecrementAHL, &mut memory);
-
-        assert_eq!(cpu.a, 0xE5);
-        assert_eq!(cpu.h, 0);
-        assert_eq!(cpu.l, 0xFF);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    // 16-bit load instruction tests
-
-    #[test]
-    fn test_load_reg_16() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        memory.rom[1] = 0xEE;
-        memory.rom[2] = 0x55;
-
-        cpu.execute(
-            Instruction::LoadReg16 {
-                register: DoubleRegister::DE,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.d, 0xEE);
-        assert_eq!(cpu.c, 0x55);
-        assert_eq!(cpu.program_counter, 3);
-    }
-
-    #[test]
-    fn test_load_address_sp() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.stack_pointer = 0xABCD;
-        memory.rom[1] = 0x1F;
-        memory.rom[2] = 0x00;
-
-        cpu.execute(Instruction::LoadAddressSP, &mut memory);
-
-        assert_eq!(memory.read(0x1F00), 0xAB);
-        assert_eq!(memory.read(0x1F01), 0xCD);
-        assert_eq!(cpu.program_counter, 3);
-    }
-
-    #[test]
-    fn test_load_sp_hl() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0xEE;
-        cpu.l = 0x55;
-
-        cpu.execute(Instruction::LoadSPHL, &mut memory);
-
-        assert_eq!(cpu.stack_pointer, 0xEE55);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_push_rr() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.stack_pointer = 0x1102;
-        cpu.a = 0xE5;
-        cpu.set_zero(true);
-        cpu.set_carry(true);
-
-        cpu.execute(
-            Instruction::PushReg {
-                register: DoubleRegister::AF,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(memory.read(0x1100), 0xE5);
-        assert_eq!(memory.read(0x1101), 0b1001_0000);
-        assert_eq!(cpu.stack_pointer, 0x1100);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_pop_rr() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.stack_pointer = 0x1100;
-        memory.rom[0x1100] = 0xE5;
-        memory.rom[0x1101] = 0x5E;
-
-        cpu.execute(
-            Instruction::PopReg {
-                register: DoubleRegister::HL,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.h, 0xE5);
-        assert_eq!(cpu.l, 0x5E);
-        assert_eq!(cpu.stack_pointer, 0x1102);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    // 8-bit Arithmetic/Logic instruction tests
-
-    #[test]
-    fn test_overflow_addition() {
-        let mut cpu = Cpu::new();
-
-        cpu.a = 5;
-        cpu.overflow_addition(10);
-
-        assert_eq!(cpu.a, 15);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-    }
-
-    #[test]
-    fn test_overflow_addition_zero() {
-        let mut cpu = Cpu::new();
-
-        cpu.a = 0;
-        cpu.overflow_addition(0);
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-    }
-
-    #[test]
-    fn test_overflow_addition_half_carry() {
-        let mut cpu = Cpu::new();
-
-        cpu.a = 0b0000_1111;
-        cpu.overflow_addition(1);
-
-        assert_eq!(cpu.a, 0b0001_0000);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), false);
-    }
-
-    #[test]
-    fn test_overflow_addition_carry() {
-        let mut cpu = Cpu::new();
-
-        cpu.a = u8::MAX;
-        cpu.overflow_addition(10);
-
-        assert_eq!(cpu.a, 9);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), true);
-    }
-
-    #[test]
-    fn test_overflow_addition_zero_carry() {
-        let mut cpu = Cpu::new();
-
-        cpu.a = u8::MAX;
-        cpu.overflow_addition(1);
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), true);
-    }
-
-    #[test]
-    fn test_overflow_subtraction() {
-        let mut cpu = Cpu::new();
-
-        cpu.a = 15;
-        let result = cpu.overflow_subtraction(10);
-
-        assert_eq!(result, 5);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), true);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-    }
-
-    #[test]
-    fn test_overflow_subtraction_zero() {
-        let mut cpu = Cpu::new();
-
-        cpu.a = 0;
-        let result = cpu.overflow_subtraction(0);
-
-        assert_eq!(result, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), true);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-    }
-
-    #[test]
-    fn test_overflow_subtraction_half_carry() {
-        let mut cpu = Cpu::new();
-
-        cpu.a = 0b0001_0000;
-        let result = cpu.overflow_subtraction(1);
-
-        assert_eq!(result, 0b0000_1111);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), true);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), false);
-    }
-
-    #[test]
-    fn test_overflow_subtraction_carry() {
-        let mut cpu = Cpu::new();
-
-        cpu.a = 0;
-        let result = cpu.overflow_subtraction(10);
-
-        assert_eq!(result, 246);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), true);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), true);
-    }
-
-    #[test]
-    fn test_and_a_reg() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b0011_0011;
-        cpu.b = 0b0010_1111;
-
-        cpu.execute(
-            Instruction::AndAReg {
-                register: Register::B,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.a, 0b0010_0011);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_and_a_reg_zero() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0;
-        cpu.b = 0xFF;
-
-        cpu.execute(
-            Instruction::AndAReg {
-                register: Register::B,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_and_a() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b0011_0011;
-        memory.rom[1] = 0b0010_1111;
-
-        cpu.execute(Instruction::AndA, &mut memory);
-
-        assert_eq!(cpu.a, 0b0010_0011);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_and_a_zero() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0;
-        memory.rom[1] = 0xFF;
-
-        cpu.execute(Instruction::AndA, &mut memory);
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 2);
+        result
     }
 
-    #[test]
-    fn test_and_a_hl() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+    /// Returns the left rotated through carry value and sets the carry flag
+    fn rotate_left_through_carry(&mut self, value: u8) -> u8 {
+        let msb = value & 0b1000_0000;
+        let carry = if self.is_carry() { 1 } else { 0 };
+        let result = (value << 1) + carry;
 
-        cpu.a = 0b0011_0011;
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0b0010_1111;
+        self.set_carry((msb >> 7) == 1);
 
-        cpu.execute(Instruction::AndAHL, &mut memory);
-
-        assert_eq!(cpu.a, 0b0010_0011);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_and_a_hl_zero() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0;
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0xFF;
-
-        cpu.execute(Instruction::AndAHL, &mut memory);
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_xor_a_reg() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b1010_1010;
-        cpu.b = 0b0101_0101;
-
-        cpu.execute(
-            Instruction::XorAReg {
-                register: Register::B,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.a, 0xFF);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_xor_a_reg_zero() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0xF0;
-        cpu.b = 0xF0;
-
-        cpu.execute(
-            Instruction::XorAReg {
-                register: Register::B,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_xor_a() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b1010_1010;
-        memory.rom[1] = 0b0101_0101;
-
-        cpu.execute(Instruction::XorA, &mut memory);
-
-        assert_eq!(cpu.a, 0xFF);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_xor_a_zero() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0xF0;
-        memory.rom[1] = 0xF0;
-
-        cpu.execute(Instruction::XorA, &mut memory);
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_xor_a_hl() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b1010_1010;
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0b0101_0101;
-
-        cpu.execute(Instruction::XorAHL, &mut memory);
-
-        assert_eq!(cpu.a, 0xFF);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_xor_a_hl_zero() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0xF0;
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0xF0;
-
-        cpu.execute(Instruction::XorAHL, &mut memory);
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_or_a_reg() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b1010_1010;
-        cpu.b = 0b1111_1111;
-
-        cpu.execute(
-            Instruction::OrAReg {
-                register: Register::B,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.a, 0xFF);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_or_a_reg_zero() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0;
-        cpu.b = 0;
-
-        cpu.execute(
-            Instruction::OrAReg {
-                register: Register::B,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_or_a() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b1010_1010;
-        memory.rom[1] = 0b1111_1111;
-
-        cpu.execute(Instruction::OrA, &mut memory);
-
-        assert_eq!(cpu.a, 0xFF);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_or_a_zero() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0;
-        memory.rom[1] = 0;
-
-        cpu.execute(Instruction::OrA, &mut memory);
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_or_a_hl() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b1010_1010;
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0b1111_1111;
-
-        cpu.execute(Instruction::OrAHL, &mut memory);
-
-        assert_eq!(cpu.a, 0xFF);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_or_a_hl_zero() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0;
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0;
-
-        cpu.execute(Instruction::OrAHL, &mut memory);
-
-        assert_eq!(cpu.a, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_inc_r() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.e = 0x0F;
-
-        cpu.execute(
-            Instruction::IncrementReg {
-                register: Register::E,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.e, 0x10);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_inc_r_overflow() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.c = 0xFF;
-
-        cpu.execute(
-            Instruction::IncrementReg {
-                register: Register::C,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.c, 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_inc_hl() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0x0F;
-
-        cpu.execute(Instruction::IncrementHL, &mut memory);
-
-        assert_eq!(memory.rom[0x1100], 0x10);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_inc_hl_overflow() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0xFF;
-
-        cpu.execute(Instruction::IncrementHL, &mut memory);
-
-        assert_eq!(memory.rom[0x1100], 0);
-        assert_eq!(cpu.is_zero(), true);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_dec_r() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.e = 0x10;
-
-        cpu.execute(
-            Instruction::DecrementReg {
-                register: Register::E,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.e, 0x0f);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), true);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_dec_r_overflow() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.c = 0;
-
-        cpu.execute(
-            Instruction::DecrementReg {
-                register: Register::C,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.c, 0xFF);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), true);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_dec_hl() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0x10;
-
-        cpu.execute(Instruction::DecrementHL, &mut memory);
-
-        assert_eq!(memory.rom[0x1100], 0x0F);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), true);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_dec_hl_overflow() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0x11;
-        cpu.l = 0x00;
-        memory.rom[0x1100] = 0x0;
-
-        cpu.execute(Instruction::DecrementHL, &mut memory);
-
-        assert_eq!(memory.rom[0x1100], 0xFF);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), true);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    // Using a BCD add example of 19 + 28 = 47
-    // 0b0001_1001 + 0b010_1000 = 0b0100_0001 => 0b0100_0111
-    fn test_daa_addition() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b0100_0001;
-        cpu.set_subtraction(false);
-        cpu.set_half_carry(true);
-
-        cpu.execute(Instruction::DecimalAdjustA, &mut memory);
-
-        assert_eq!(cpu.a, 0b0100_0111);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    // Using a BCD subtract example of 47 - 28 = 19
-    // 0b0100_0111 + 0b1101_1000 = 0b0001_1111 => 0b0001_1001
-    fn test_daa_subtraction() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b0001_1111;
-        cpu.set_subtraction(true);
-        cpu.set_half_carry(true);
-
-        cpu.execute(Instruction::DecimalAdjustA, &mut memory);
-
-        assert_eq!(cpu.a, 0b0001_1001);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_cpl() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b1010_1010;
-
-        cpu.execute(Instruction::Complement, &mut memory);
-
-        assert_eq!(cpu.a, 0b0101_0101);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    // 16-bit arithmetic/logic instruction tests
-
-    #[test]
-    fn test_add_hl_rr() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0x0F;
-        cpu.l = 0xFF;
-        cpu.d = 0x00;
-        cpu.e = 0x02;
-
-        cpu.execute(
-            Instruction::AddHLReg {
-                register: DoubleRegister::DE,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.hl(), 0x1001);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), false);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_add_hl_rr_overflow() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.h = 0xFF;
-        cpu.l = 0xFF;
-        cpu.b = 0x00;
-        cpu.c = 0x02;
-
-        cpu.execute(
-            Instruction::AddHLReg {
-                register: DoubleRegister::BC,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.hl(), 1);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
+        result
     }
 
-    #[test]
-    fn test_inc_rr() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+    /// Returns the right rotated value and sets the carry flag
+    fn rotate_right(&mut self, value: u8) -> u8 {
+        let lsb = value & 0b0000_0001;
+        let result = (value >> 1) + (lsb << 7);
 
-        cpu.d = 0x00;
-        cpu.e = 0xFF;
+        self.set_carry(lsb == 1);
 
-        cpu.execute(
-            Instruction::IncrementReg16 {
-                register: DoubleRegister::DE,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.de(), 0x0100);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_inc_rr_overflow() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.b = 0xFF;
-        cpu.c = 0xFF;
-
-        cpu.execute(
-            Instruction::IncrementReg16 {
-                register: DoubleRegister::BC,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.bc(), 0);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_dec_rr() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.d = 0x01;
-        cpu.e = 0x00;
-
-        cpu.execute(
-            Instruction::DecrementReg16 {
-                register: DoubleRegister::DE,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.de(), 0x00FF);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_dec_rr_overflow() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.b = 0x00;
-        cpu.c = 0x00;
-
-        cpu.execute(
-            Instruction::DecrementReg16 {
-                register: DoubleRegister::BC,
-            },
-            &mut memory,
-        );
-
-        assert_eq!(cpu.bc(), 0xFFFF);
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_add_sp_offset_postive() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.stack_pointer = 0xFFFF;
-        memory.rom[1] = 1;
-        cpu.execute(Instruction::AddSPOffset, &mut memory);
-
-        assert_eq!(cpu.stack_pointer, 0);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), true);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_add_sp_offset_negative() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.stack_pointer = 5;
-        memory.rom[1] = (-10 as i8) as u8;
-        cpu.execute(Instruction::AddSPOffset, &mut memory);
-
-        assert_eq!(cpu.stack_pointer, 0xFFFF - 5);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), true);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_load_hl_sp_offset_postive() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.stack_pointer = 0xFFFF;
-        memory.rom[1] = 1;
-        cpu.execute(Instruction::LoadHLSPOffset, &mut memory);
-
-        assert_eq!(cpu.hl(), 0);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), true);
-        assert_eq!(cpu.program_counter, 2);
-    }
-
-    #[test]
-    fn test_load_hl_sp_offset_negative() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.stack_pointer = 5;
-        memory.rom[1] = (-10 as i8) as u8;
-        cpu.execute(Instruction::LoadHLSPOffset, &mut memory);
-
-        assert_eq!(cpu.hl(), 0xFFFF - 5);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), true);
-        assert_eq!(cpu.is_carry(), true);
-        assert_eq!(cpu.program_counter, 2);
-    }
-    //------------------------------------
-    #[test]
-    fn test_nop() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.execute(Instruction::Nop, &mut memory);
-
-        assert_eq!(cpu.program_counter, 1);
-    }
-
-    #[test]
-    fn test_rlca() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        cpu.a = 0b1010_0101;
-        cpu.set_zero(true);
-        cpu.set_subtraction(true);
-        cpu.set_half_carry(true);
-
-        cpu.execute(Instruction::RotateALeft, &mut memory);
-
-        assert_eq!(cpu.a, 0b0100_1011);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
+        result
     }
 
-    #[test]
-    fn test_rrca() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+    /// Returns the right rotated through carry value and sets the carry flag
+    fn rotate_right_through_carry(&mut self, value: u8) -> u8 {
+        let lsb = value & 0b0000_0001;
+        let carry = if self.is_carry() { 0b1000_0000 } else { 0 };
+        let result = (value >> 1) + carry;
 
-        cpu.a = 0b1010_0101;
-        cpu.set_zero(true);
-        cpu.set_subtraction(true);
-        cpu.set_half_carry(true);
+        self.set_carry(lsb == 1);
 
-        cpu.execute(Instruction::RotateARight, &mut memory);
-
-        assert_eq!(cpu.a, 0b1101_0010);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
+        result
     }
-
-    #[test]
-    fn test_rla() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
 
-        cpu.a = 0b1010_0101;
-        cpu.set_zero(true);
-        cpu.set_subtraction(true);
-        cpu.set_half_carry(true);
+    /// Returns the left shifted value and sets the zero and carry flags
+    fn shift_left(&mut self, value: u8) -> u8 {
+        let msb = value & 0b1000_0000;
+        let carry = msb >> 7;
+        let result = value << 1;
 
-        cpu.execute(Instruction::RotateALeftThroughCarry, &mut memory);
+        self.set_zero(result == 0);
+        self.set_carry(carry == 1);
 
-        assert_eq!(cpu.a, 0b0100_1010);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
+        result
     }
 
-    #[test]
-    fn test_jr() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+    /// Swap the upper and lower nibble of value and set the zero flag
+    fn swap(&mut self, value: u8) -> u8 {
+        let upper = get_upper_bits(value);
+        let lower = get_lower_bits(value);
+        let result = (lower << 4) + upper;
 
-        let pc = cpu.program_counter;
-        let flag = ConditionalFlag::None;
-        memory.rom[1] = 25;
-        // -20 as a u8, should be equal to 236
-        memory.rom[1 + 25] = 0b1110_1100;
+        self.set_zero(result == 0);
 
-        cpu.execute(Instruction::JumpRelative { flag }, &mut memory);
-        assert_eq!(cpu.program_counter, pc + 25);
-
-        let pc = cpu.program_counter;
-        cpu.execute(Instruction::JumpRelative { flag }, &mut memory);
-        assert_eq!(cpu.program_counter, pc - 20);
+        result
     }
 
-    #[test]
-    fn test_jr_flags() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+    /// Returns the arithmeticly right shifted value and sets the zero and carry flags
+    fn shift_right_arithmetic(&mut self, value: u8) -> u8 {
+        let msb = value & 0b1000_0000;
+        let lsb = value & 0b0000_0001;
+        let result = value >> 1 | msb;
 
-        let pc = cpu.program_counter;
-        let flag = ConditionalFlag::NZ;
-        memory.rom[1] = 25;
-        memory.rom[1 + 25] = 25;
+        self.set_zero(result == 0);
+        self.set_carry(lsb == 1);
 
-        cpu.execute(Instruction::JumpRelative { flag }, &mut memory);
-        assert_eq!(cpu.program_counter, pc + 25);
-
-        let pc = cpu.program_counter;
-        cpu.set_zero(true);
-        cpu.execute(Instruction::JumpRelative { flag }, &mut memory);
-        assert_eq!(cpu.program_counter, pc + 1);
+        result
     }
-
-    #[test]
-    fn test_rra() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
 
-        cpu.a = 0b1010_0101;
-        cpu.set_zero(true);
-        cpu.set_subtraction(true);
-        cpu.set_half_carry(true);
+    /// Returns the logically right shifted value and sets the zero and carry flags
+    fn shift_right_logical(&mut self, value: u8) -> u8 {
+        let lsb = value & 0b0000_0001;
+        let result = value >> 1;
 
-        cpu.execute(Instruction::RotateARightThroughCarry, &mut memory);
+        self.set_zero(result == 0);
+        self.set_carry(lsb == 1);
 
-        assert_eq!(cpu.a, 0b0101_0010);
-        assert_eq!(cpu.is_zero(), false);
-        assert_eq!(cpu.is_subtraction(), false);
-        assert_eq!(cpu.is_half_carry(), false);
-        assert_eq!(cpu.is_carry(), true);
-        assert_eq!(cpu.program_counter, 1);
+        result
     }
 }

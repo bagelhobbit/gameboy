@@ -24,7 +24,7 @@ pub enum DoubleRegister {
     DE,
     HL,
     AF,
-    SP
+    SP,
 }
 
 #[derive(Debug)]
@@ -196,23 +196,75 @@ pub enum Instruction {
     AddSPOffset,
     /// 0xF8 - LD HL,SP+r8
     LoadHLSPOffset,
+
+    // Rotate and Shift instructions
+    /// 0x07 - RLCA
+    RotateALeft,
+    /// 0x17 - RLA
+    RotateALeftThroughCarry,
+    /// 0x0F - RRCA
+    RotateARight,
+    /// 0x1F - RRA
+    RotateARightThroughCarry,
+    /// 0xCB 0x - RLC R
+    RotateLeft {
+        register: Register,
+    },
+    /// 0xCB 06 - RLC (HL)
+    RotateHLLeft,
+    /// 0xCB 1x - RL R
+    RotateLeftThroughCarry {
+        register: Register,
+    },
+    /// 0xCB 16 - RL (HL)
+    RotateHLLeftThroughCarry,
+    /// 0xCB 0x RRC R
+    RotateRight {
+        register: Register,
+    },
+    /// 0xCB 0E RRC (HL)
+    RotateHLRight,
+    /// 0xCB 1x - RR R
+    RotateRightThroughCarry {
+        register: Register,
+    },
+    /// 0xCB 1E - RR (HL)
+    RotateHLRightThroughCarry,
+    /// 0xCB 2x - SLA R
+    ShiftLeftArithmetic {
+        register: Register,
+    },
+    /// 0xCB 26 - SLA (HL)
+    ShiftHLLeftArithmetic,
+    /// 0xCB 3x - SWAP R
+    Swap {
+        register: Register,
+    },
+    /// 0xCB 36 - SWAP (HL)
+    SwapHL,
+    /// 0xCB 2x - SRA R
+    ShiftRightArithmetic {
+        register: Register,
+    },
+    /// 0xCB 2E - SRA (HL)
+    ShiftHLRightArithmetic,
+    /// 0xCB 3x - SRL R
+    ShiftRightLogical {
+        register: Register,
+    },
+    /// 0xCB 3E - SRL (HL)
+    ShiftHLRightLogical,
+
+    // Single-bit operation instructions
     //--------------------
     /// 0x00 - NOP
     Nop,
-    /// 0x07 - RLCA
-    RotateALeft,
-    /// 0x0F - RRCA
-    RotateARight,
     /// 0x10 - STOP 0
     Stop,
-    /// 0x17 - RLA
-    RotateALeftThroughCarry,
     /// JR {f},r8
     JumpRelative {
         flag: ConditionalFlag,
     },
-    /// 0x1F - RRA
-    RotateARightThroughCarry,
     /// 0x37 - SCF
     Scf,
     /// 0x3F - CCF
@@ -237,10 +289,6 @@ pub enum Instruction {
     ReturnIfZero,
     /// 0xC9 - RET
     Return,
-    /// 0xCB - PREFIX CB
-    Prefix {
-        op: u8,
-    },
     /// 0xCA - JP Z,a16
     JumpIfZero {
         address: u16,
