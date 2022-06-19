@@ -256,6 +256,33 @@ pub enum Instruction {
     ShiftHLRightLogical,
 
     // Single-bit operation instructions
+    /// 0xCB {4-7}x - BIT x,R
+    TestBit {
+        bit: u8,
+        register: Register,
+    },
+    /// 0xCB {4-7}{6,E} - BIT x, (HL)
+    TestHLBit {
+        bit: u8,
+    },
+    /// 0xCB {C-F}x - SET x, R
+    SetBit {
+        bit: u8,
+        register: Register,
+    },
+    /// 0xCB {C-F}{6,E} - SET x, (HL)
+    SetHLBit {
+        bit: u8,
+    },
+    /// 0xCB {8-B}x - RES x, R
+    ResetBit {
+        bit: u8,
+        register: Register,
+    },
+    /// 0xCB {8-B}{6,E} - RES x, (HL)
+    ResetHLBit {
+        bit: u8,
+    },
     //--------------------
     /// 0x00 - NOP
     Nop,

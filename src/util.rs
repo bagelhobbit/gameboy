@@ -13,6 +13,22 @@ pub fn get_as_bits(byte: u8) -> [u8; 8] {
     bits
 }
 
+/// Returns the byte representation of an array of bits
+pub fn bits_to_u8(bits: [u8; 8]) -> u8 {
+    let mut result = 0;
+
+    result |= bits[0] << 7;
+    result |= bits[1] << 6;
+    result |= bits[2] << 5;
+    result |= bits[3] << 4;
+    result |= bits[4] << 3;
+    result |= bits[5] << 2;
+    result |= bits[6] << 1;
+    result |= bits[7];
+
+    result
+}
+
 /// Returns the top 4 bits of a `u8`
 pub fn get_upper_bits(byte: u8) -> u8 {
     (byte & 0b1111_0000) >> 4
@@ -46,6 +62,12 @@ mod tests {
     fn test_get_as_bits() {
         let byte = 0b1010_1010;
         assert_eq!(get_as_bits(byte), [1, 0, 1, 0, 1, 0, 1, 0])
+    }
+
+    #[test]
+    fn test_bits_to_u8() {
+        let bits: [u8; 8] = [1, 0, 1, 0, 1, 0, 1, 0];
+        assert_eq!(bits_to_u8(bits), 0b1010_1010);
     }
 
     #[test]

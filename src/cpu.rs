@@ -543,20 +543,21 @@ impl Cpu {
     fn parse_prefix(&mut self, memory: &Memory) -> Instruction {
         let instruction = memory.rom[self.program_counter as usize + 1];
 
+        let registers = [
+            Register::B,
+            Register::C,
+            Register::D,
+            Register::E,
+            Register::H,
+            Register::L,
+            Register::A, //Duplicate entry to pad (HL) instructions
+            Register::A,
+        ];
+
         match (get_upper_bits(instruction), get_lower_bits(instruction)) {
             (0x0, 0x6) => Instruction::RotateHLLeft,
             (0x0, 0xE) => Instruction::RotateHLRight,
             (0x0, reg) => {
-                let registers = [
-                    Register::B,
-                    Register::C,
-                    Register::D,
-                    Register::E,
-                    Register::H,
-                    Register::L,
-                    Register::A, //Duplicate entry to pad RL/RR (HL)
-                    Register::A,
-                ];
                 if reg < 8 {
                     Instruction::RotateLeft {
                         register: registers[reg as usize],
@@ -570,16 +571,6 @@ impl Cpu {
             (0x1, 0x6) => Instruction::RotateHLLeftThroughCarry,
             (0x1, 0xE) => Instruction::RotateHLRightThroughCarry,
             (0x1, reg) => {
-                let registers = [
-                    Register::B,
-                    Register::C,
-                    Register::D,
-                    Register::E,
-                    Register::H,
-                    Register::L,
-                    Register::A, //Duplicate entry to pad RLC/RRC (HL)
-                    Register::A,
-                ];
                 if reg < 8 {
                     Instruction::RotateLeftThroughCarry {
                         register: registers[reg as usize],
@@ -593,16 +584,6 @@ impl Cpu {
             (0x2, 0x6) => Instruction::ShiftHLLeftArithmetic,
             (0x2, 0xE) => Instruction::ShiftHLRightArithmetic,
             (0x2, reg) => {
-                let registers = [
-                    Register::B,
-                    Register::C,
-                    Register::D,
-                    Register::E,
-                    Register::H,
-                    Register::L,
-                    Register::A, //Duplicate entry to pad SLA/SRA (HL)
-                    Register::A,
-                ];
                 if reg < 8 {
                     Instruction::ShiftLeftArithmetic {
                         register: registers[reg as usize],
@@ -616,22 +597,192 @@ impl Cpu {
             (0x3, 0x6) => Instruction::SwapHL,
             (0x3, 0xE) => Instruction::ShiftHLRightLogical,
             (0x3, reg) => {
-                let registers = [
-                    Register::B,
-                    Register::C,
-                    Register::D,
-                    Register::E,
-                    Register::H,
-                    Register::L,
-                    Register::A, //Duplicate entry to pad SWAP/SRL (HL)
-                    Register::A,
-                ];
                 if reg < 8 {
                     Instruction::Swap {
                         register: registers[reg as usize],
                     }
                 } else {
                     Instruction::ShiftRightLogical {
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0x4, 0x6) => Instruction::TestHLBit { bit: 0 },
+            (0x4, 0xE) => Instruction::TestHLBit { bit: 1 },
+            (0x4, reg) => {
+                if reg < 8 {
+                    Instruction::TestBit {
+                        bit: 0,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::TestBit {
+                        bit: 1,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0x5, 0x6) => Instruction::TestHLBit { bit: 2 },
+            (0x5, 0xE) => Instruction::TestHLBit { bit: 3 },
+            (0x5, reg) => {
+                if reg < 8 {
+                    Instruction::TestBit {
+                        bit: 2,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::TestBit {
+                        bit: 3,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0x6, 0x6) => Instruction::TestHLBit { bit: 4 },
+            (0x6, 0xE) => Instruction::TestHLBit { bit: 5 },
+            (0x6, reg) => {
+                if reg < 8 {
+                    Instruction::TestBit {
+                        bit: 4,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::TestBit {
+                        bit: 5,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0x7, 0x6) => Instruction::TestHLBit { bit: 6 },
+            (0x7, 0xE) => Instruction::TestHLBit { bit: 7 },
+            (0x7, reg) => {
+                if reg < 8 {
+                    Instruction::TestBit {
+                        bit: 6,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::TestBit {
+                        bit: 7,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0x8, 0x6) => Instruction::ResetHLBit { bit: 0 },
+            (0x8, 0xE) => Instruction::ResetHLBit { bit: 1 },
+            (0x8, reg) => {
+                if reg < 8 {
+                    Instruction::ResetBit {
+                        bit: 0,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::ResetBit {
+                        bit: 1,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0x9, 0x6) => Instruction::ResetHLBit { bit: 2 },
+            (0x9, 0xE) => Instruction::ResetHLBit { bit: 3 },
+            (0x9, reg) => {
+                if reg < 8 {
+                    Instruction::ResetBit {
+                        bit: 2,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::ResetBit {
+                        bit: 3,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0xA, 0x6) => Instruction::ResetHLBit { bit: 4 },
+            (0xA, 0xE) => Instruction::ResetHLBit { bit: 5 },
+            (0xA, reg) => {
+                if reg < 8 {
+                    Instruction::ResetBit {
+                        bit: 4,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::ResetBit {
+                        bit: 5,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0xB, 0x6) => Instruction::ResetHLBit { bit: 6 },
+            (0xB, 0xE) => Instruction::ResetHLBit { bit: 7 },
+            (0xB, reg) => {
+                if reg < 8 {
+                    Instruction::ResetBit {
+                        bit: 6,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::ResetBit {
+                        bit: 7,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0xC, 0x6) => Instruction::SetHLBit { bit: 0 },
+            (0xC, 0xE) => Instruction::SetHLBit { bit: 1 },
+            (0xC, reg) => {
+                if reg < 8 {
+                    Instruction::SetBit {
+                        bit: 0,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::SetBit {
+                        bit: 1,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0xD, 0x6) => Instruction::SetHLBit { bit: 2 },
+            (0xD, 0xE) => Instruction::SetHLBit { bit: 3 },
+            (0xD, reg) => {
+                if reg < 8 {
+                    Instruction::SetBit {
+                        bit: 2,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::SetBit {
+                        bit: 3,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0xE, 0x6) => Instruction::SetHLBit { bit: 4 },
+            (0xE, 0xE) => Instruction::SetHLBit { bit: 5 },
+            (0xE, reg) => {
+                if reg < 8 {
+                    Instruction::SetBit {
+                        bit: 4,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::SetBit {
+                        bit: 5,
+                        register: registers[reg as usize % 8],
+                    }
+                }
+            }
+            (0xF, 0x6) => Instruction::SetHLBit { bit: 6 },
+            (0xF, 0xE) => Instruction::SetHLBit { bit: 7 },
+            (0xF, reg) => {
+                if reg < 8 {
+                    Instruction::SetBit {
+                        bit: 6,
+                        register: registers[reg as usize],
+                    }
+                } else {
+                    Instruction::SetBit {
+                        bit: 7,
                         register: registers[reg as usize % 8],
                     }
                 }
@@ -1797,8 +1948,70 @@ impl Cpu {
 
                 self.program_counter += 2;
             }
-            
+
             // Single-bit operation instructions
+            Instruction::TestBit { bit, register } => {
+                match register {
+                    Register::B => self.test_bit(bit, self.b),
+                    Register::C => self.test_bit(bit, self.c),
+                    Register::D => self.test_bit(bit, self.d),
+                    Register::E => self.test_bit(bit, self.e),
+                    Register::H => self.test_bit(bit, self.h),
+                    Register::L => self.test_bit(bit, self.l),
+                    Register::A => self.test_bit(bit, self.a),
+                }
+
+                self.set_subtraction(false);
+                self.set_half_carry(true);
+                self.program_counter += 2;
+            }
+            Instruction::TestHLBit { bit } => {
+                let data = memory.read(self.hl());
+                self.test_bit(bit, data);
+
+                self.set_subtraction(false);
+                self.set_half_carry(true);
+                self.program_counter += 2;
+            }
+            Instruction::SetBit { bit, register } => {
+                match register {
+                    Register::B => self.b = self.set_bit(bit, self.b),
+                    Register::C => self.c = self.set_bit(bit, self.c),
+                    Register::D => self.d = self.set_bit(bit, self.d),
+                    Register::E => self.e = self.set_bit(bit, self.e),
+                    Register::H => self.h = self.set_bit(bit, self.h),
+                    Register::L => self.l = self.set_bit(bit, self.l),
+                    Register::A => self.a = self.set_bit(bit, self.a),
+                }
+
+                self.program_counter += 2;
+            }
+            Instruction::SetHLBit { bit } => {
+                let data = memory.read(self.hl());
+                memory.write(self.hl(), self.set_bit(bit, data));
+
+                self.program_counter += 2;
+            }
+            Instruction::ResetBit { bit, register } => {
+                match register {
+                    Register::B => self.b = self.reset_bit(bit, self.b),
+                    Register::C => self.c = self.reset_bit(bit, self.c),
+                    Register::D => self.d = self.reset_bit(bit, self.d),
+                    Register::E => self.e = self.reset_bit(bit, self.e),
+                    Register::H => self.h = self.reset_bit(bit, self.h),
+                    Register::L => self.l = self.reset_bit(bit, self.l),
+                    Register::A => self.a = self.reset_bit(bit, self.a),
+                }
+
+                self.program_counter += 2;
+            }
+            Instruction::ResetHLBit { bit } => {
+                let data = memory.read(self.hl());
+                memory.write(self.hl(), self.reset_bit(bit, data));
+
+                self.program_counter += 2;
+            }
+            
             //-----------------------------
             Instruction::Invalid => todo!(),
             Instruction::Nop => {
@@ -1970,5 +2183,44 @@ impl Cpu {
         self.set_carry(lsb == 1);
 
         result
+    }
+
+    /// Test the bit of `value` at `position` and set the zero flag with the result
+    ///
+    /// Bits are indexed from 7->0, where bit 7 is the leftmost bit
+    fn test_bit(&mut self, position: u8, value: u8) {
+        let bits = get_as_bits(value);
+
+        if position < 7 {
+            self.set_zero(bits[7 - position as usize] == 0);
+        }
+    }
+
+    /// Set the bit of `value` at `position`
+    ///
+    /// Bits are indexed from 7->0, where bit 7 is the leftmost bit
+    fn set_bit(&mut self, position: u8, value: u8) -> u8 {
+        let mut bits = get_as_bits(value);
+
+        if position < 7 {
+            bits[7 - position as usize] = 1;
+            bits_to_u8(bits)
+        } else {
+            value
+        }
+    }
+
+    /// Reset the bit of `value` at `position`
+    ///
+    /// Bits are indexed from 7->0, where bit 7 is the leftmost bit
+    fn reset_bit(&mut self, position: u8, value: u8) -> u8 {
+        let mut bits = get_as_bits(value);
+
+        if position < 7 {
+            bits[7 - position as usize] = 0;
+            bits_to_u8(bits)
+        } else {
+            value
+        }
     }
 }

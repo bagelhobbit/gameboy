@@ -1738,6 +1738,144 @@ fn test_srl_hl() {
     assert_eq!(cpu.program_counter, 2);
 }
 
+// Single-bit Operation instruction tests
+
+#[test]
+fn test_test_bit_true() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.d = 0b1010_0000;
+    cpu.execute(
+        Instruction::TestBit {
+            bit: 5,
+            register: Register::D,
+        },
+        &mut memory,
+    );
+
+    assert_eq!(cpu.is_zero(), false);
+    assert_eq!(cpu.is_subtraction(), false);
+    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.program_counter, 2);
+}
+
+#[test]
+fn test_test_bit_false() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.d = 0b1010_0000;
+    cpu.execute(
+        Instruction::TestBit {
+            bit: 0,
+            register: Register::D,
+        },
+        &mut memory,
+    );
+
+    assert_eq!(cpu.is_zero(), true);
+    assert_eq!(cpu.is_subtraction(), false);
+    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.program_counter, 2);
+}
+
+#[test]
+fn test_test_hl_bit_true() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.h = 0x11;
+    cpu.l = 0x00;
+    memory.rom[0x1100] = 0b1010_0000;
+    cpu.execute(Instruction::TestHLBit { bit: 5 }, &mut memory);
+
+    assert_eq!(cpu.is_zero(), false);
+    assert_eq!(cpu.is_subtraction(), false);
+    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.program_counter, 2);
+}
+
+#[test]
+fn test_test_hl_bit_false() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.h = 0x11;
+    cpu.l = 0x00;
+    memory.rom[0x1100] = 0b1010_0000;
+    cpu.execute(Instruction::TestHLBit { bit: 0 }, &mut memory);
+
+    assert_eq!(cpu.is_zero(), true);
+    assert_eq!(cpu.is_subtraction(), false);
+    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.program_counter, 2);
+}
+
+#[test]
+fn test_set_bit() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.c = 0;
+    cpu.execute(
+        Instruction::SetBit {
+            bit: 5,
+            register: Register::C,
+        },
+        &mut memory,
+    );
+
+    assert_eq!(cpu.c, 0b0010_0000);
+    assert_eq!(cpu.program_counter, 2);
+}
+
+#[test]
+fn test_set_hl_bit() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.h = 0x11;
+    cpu.l = 0x00;
+    memory.rom[0x1100] = 0;
+    cpu.execute(Instruction::SetHLBit { bit: 5 }, &mut memory);
+
+    assert_eq!(memory.rom[0x1100], 0b0010_0000);
+    assert_eq!(cpu.program_counter, 2);
+}
+
+#[test]
+fn test_reset_bit() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.c = 0xFF;
+    cpu.execute(
+        Instruction::ResetBit {
+            bit: 5,
+            register: Register::C,
+        },
+        &mut memory,
+    );
+
+    assert_eq!(cpu.c, 0b1101_1111);
+    assert_eq!(cpu.program_counter, 2);
+}
+
+#[test]
+fn test_reset_hl_bit() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.h = 0x11;
+    cpu.l = 0x00;
+    memory.rom[0x1100] = 0xFF;
+    cpu.execute(Instruction::ResetHLBit { bit: 5 }, &mut memory);
+
+    assert_eq!(memory.rom[0x1100], 0b1101_1111);
+    assert_eq!(cpu.program_counter, 2);
+}
+
 //------------------------------------
 #[test]
 fn test_nop() {
