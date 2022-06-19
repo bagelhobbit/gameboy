@@ -1,6 +1,5 @@
 #[derive(Debug, Clone, Copy)]
 pub enum ConditionalFlag {
-    None,
     NZ,
     Z,
     NC,
@@ -283,79 +282,52 @@ pub enum Instruction {
     ResetHLBit {
         bit: u8,
     },
-    //--------------------
+
+    // CPU Control instructions
+    /// 0x3F - CCF
+    FlipCarryFlag,
+    /// 0x37 - SCF
+    SetCarryFlag,
     /// 0x00 - NOP
     Nop,
-    /// 0x10 - STOP 0
-    Stop,
-    /// JR {f},r8
-    JumpRelative {
-        flag: ConditionalFlag,
-    },
-    /// 0x37 - SCF
-    Scf,
-    /// 0x3F - CCF
-    Ccf,
     /// 0x76 - HALT
     Halt,
-    /// 0xC0 - RET NZ
-    ReturnIfNotZero,
-    /// 0xC2 - JP NZ,a16
-    JumpIfNotZero {
-        address: u16,
-    },
-    /// 0xC3 - JP a16
-    Jump {
-        address: u16,
-    },
-    /// 0xC4 - CALL NZ,a16
-    CallIfNotZero {
-        address: u16,
-    },
-    /// 0xC8 - RET Z
-    ReturnIfZero,
-    /// 0xC9 - RET
-    Return,
-    /// 0xCA - JP Z,a16
-    JumpIfZero {
-        address: u16,
-    },
-    ///0xCC - CALL Z,a16
-    CallIfZero {
-        address: u16,
-    },
-    /// 0xCD - CALL a16
-    Call {
-        address: u16,
-    },
-    /// 0xD0 - RET NC
-    ReturnIfNotCarry,
-    /// 0xD2 - JP NC,a16
-    JumpIfNotCarry {
-        address: u16,
-    },
-    /// 0xD3 - CALL NC,a16
-    CallIfNotCarry {
-        address: u16,
-    },
-    /// 0xD8 - RET C
-    ReturnIfCarry,
-    /// 0xD9 - RETI
-    ReturnAndEnableInterrupts,
-    /// 0xDA - JP C,a16
-    JumpIfCarry {
-        address: u16,
-    },
-    /// 0xDC - CALL C,a16
-    CallIfCarry {
-        address: u16,
-    },
-    /// 0xE9 - JP (HL)
-    JumpHL,
+    /// 0x10 - STOP 0
+    Stop,
     /// 0xF3 - DI
     DisableInterrupts,
     /// 0xFB - EI
     EnableInterrupts,
+
+    // Jump instructions
+    /// 0xC3 - JP a16
+    Jump,
+    /// 0xE9 - JP (HL)
+    JumpHL,
+    /// JP {f}, a16
+    JumpConditional {
+        flag: ConditionalFlag,
+    },
+    /// 0x18 - JR r8
+    JumpRelative,
+    /// JR f,r8
+    JumpRelativeConditional {
+        flag: ConditionalFlag,
+    },
+    /// 0xCD - CALL a16
+    Call,
+    /// CALL f, a16
+    CallConditinal {
+        flag: ConditionalFlag
+    },
+    /// 0xC9 - RET
+    Return,
+    /// RET f
+    ReturnConditional {
+        flag: ConditionalFlag
+    },
+    /// 0xD9 - RETI
+    ReturnAndEnableInterrupts,
     /// 0x{C-F}6 - RST x0H
     Reset0 {
         location: u8,

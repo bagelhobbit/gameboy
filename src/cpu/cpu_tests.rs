@@ -1876,7 +1876,34 @@ fn test_reset_hl_bit() {
     assert_eq!(cpu.program_counter, 2);
 }
 
-//------------------------------------
+// CPU Control instruction tests
+
+#[test]
+fn test_ccf() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.set_carry(true);
+    cpu.execute(Instruction::FlipCarryFlag, &mut memory);
+
+    assert_eq!(cpu.is_carry(), false);
+    cpu.execute(Instruction::FlipCarryFlag, &mut memory);
+
+    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.program_counter, 2);
+}
+
+#[test]
+fn test_scf() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.execute(Instruction::SetCarryFlag, &mut memory);
+
+    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.program_counter, 1);
+}
+
 #[test]
 fn test_nop() {
     let mut cpu = Cpu::new();
@@ -1887,22 +1914,96 @@ fn test_nop() {
     assert_eq!(cpu.program_counter, 1);
 }
 
+//halt
+
+//stop
+
+#[test]
+fn test_di() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    memory.interrupt_enable_register = true;
+    cpu.execute(Instruction::DisableInterrupts, &mut memory);
+
+    assert_eq!(memory.interrupt_enable_register, false);
+    assert_eq!(cpu.program_counter, 1);
+}
+
+#[test]
+fn test_ei() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    memory.interrupt_enable_register = false;
+    cpu.execute(Instruction::EnableInterrupts, &mut memory);
+
+    assert_eq!(memory.interrupt_enable_register, true);
+    assert_eq!(cpu.program_counter, 1);
+}
+
+// Jump instruction tests
+
+#[test]
+fn test_jp() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    memory.rom[1] = 0x11;
+    memory.rom[2] = 0x00;
+    cpu.execute(Instruction::Jump, &mut memory);
+
+    assert_eq!(cpu.program_counter, 0x1100);
+}
+
+#[test]
+fn test_jp_hl() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    cpu.h = 0x11;
+    cpu.l = 0x00;
+
+    cpu.execute(Instruction::JumpHL, &mut memory);
+
+    assert_eq!(cpu.program_counter, 0x1100);
+}
+
+#[test]
+fn test_jp_flags() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    let flag = ConditionalFlag::NZ;
+    memory.rom[1] = 0x11;
+    memory.rom[2] = 0x00;
+
+    memory.rom[0x1101] = 0x15;
+    memory.rom[0x1102] = 0x14;
+
+    cpu.execute(Instruction::JumpConditional { flag }, &mut memory);
+    assert_eq!(cpu.program_counter, 0x1100);
+
+    cpu.set_zero(true);
+    cpu.execute(Instruction::JumpConditional { flag }, &mut memory);
+    assert_eq!(cpu.program_counter, 0x1103);
+}
+
 #[test]
 fn test_jr() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
     let pc = cpu.program_counter;
-    let flag = ConditionalFlag::None;
     memory.rom[1] = 25;
     // -20 as a u8, should be equal to 236
     memory.rom[1 + 25] = 0b1110_1100;
 
-    cpu.execute(Instruction::JumpRelative { flag }, &mut memory);
+    cpu.execute(Instruction::JumpRelative, &mut memory);
     assert_eq!(cpu.program_counter, pc + 25);
 
     let pc = cpu.program_counter;
-    cpu.execute(Instruction::JumpRelative { flag }, &mut memory);
+    cpu.execute(Instruction::JumpRelative, &mut memory);
     assert_eq!(cpu.program_counter, pc - 20);
 }
 
@@ -1916,11 +2017,122 @@ fn test_jr_flags() {
     memory.rom[1] = 25;
     memory.rom[1 + 25] = 25;
 
-    cpu.execute(Instruction::JumpRelative { flag }, &mut memory);
+    cpu.execute(Instruction::JumpRelativeConditional { flag }, &mut memory);
     assert_eq!(cpu.program_counter, pc + 25);
 
     let pc = cpu.program_counter;
     cpu.set_zero(true);
-    cpu.execute(Instruction::JumpRelative { flag }, &mut memory);
-    assert_eq!(cpu.program_counter, pc + 1);
+    cpu.execute(Instruction::JumpRelativeConditional { flag }, &mut memory);
+    assert_eq!(cpu.program_counter, pc + 2);
+}
+
+#[test]
+fn test_call() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    memory.rom[1] = 0x11;
+    memory.rom[2] = 0x00;
+    memory.write(0xFFFC, 0xFF);
+    cpu.execute(Instruction::Call, &mut memory);
+
+    assert_eq!(cpu.stack_pointer, 0xFFFC);
+    assert_eq!(memory.read(cpu.stack_pointer), 0);
+    assert_eq!(cpu.program_counter, 0x1100);
+}
+
+#[test]
+fn test_call_conditional() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+    let flag = ConditionalFlag::NC;
+
+    memory.rom[1] = 0x11;
+    memory.rom[2] = 0x00;
+    memory.write(0xFFFC, 0xFF);
+    cpu.execute(Instruction::CallConditinal { flag }, &mut memory);
+
+    assert_eq!(cpu.stack_pointer, 0xFFFC);
+    assert_eq!(memory.read(cpu.stack_pointer), 0);
+    assert_eq!(cpu.program_counter, 0x1100);
+
+    cpu.set_carry(true);
+    cpu.execute(Instruction::CallConditinal { flag }, &mut memory);
+
+    assert_eq!(cpu.stack_pointer, 0xFFFC);
+    assert_eq!(cpu.program_counter, 0x1100 + 3);
+}
+
+#[test]
+fn test_ret() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    memory.write16(0xFFFC, 0x1100);
+    cpu.stack_pointer -= 2;
+    cpu.execute(Instruction::Return, &mut memory);
+
+    assert_eq!(cpu.stack_pointer, 0xFFFE);
+    assert_eq!(cpu.program_counter, 0x1100);
+}
+
+#[test]
+fn test_ret_conditional() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+    let flag = ConditionalFlag::Z;
+
+    memory.write16(0xFFFA, 0x1100);
+    cpu.stack_pointer -= 4;
+    cpu.set_zero(true);
+    cpu.execute(Instruction::ReturnConditional { flag }, &mut memory);
+
+    assert_eq!(cpu.stack_pointer, 0xFFFC);
+    assert_eq!(cpu.program_counter, 0x1100);
+
+    cpu.set_zero(false);
+    cpu.execute(Instruction::ReturnConditional { flag }, &mut memory);
+    assert_eq!(cpu.stack_pointer, 0xFFFC);
+    assert_eq!(cpu.program_counter, 0x1100 + 1);
+}
+
+#[test]
+fn test_reti() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    memory.write(0xFFFF, 0);
+    memory.write16(0xFFFC, 0x1100);
+    cpu.stack_pointer -= 2;
+    cpu.execute(Instruction::ReturnAndEnableInterrupts, &mut memory);
+
+    assert_eq!(memory.read(0xFFFF), 1);
+    assert_eq!(cpu.stack_pointer, 0xFFFE);
+    assert_eq!(cpu.program_counter, 0x1100);
+}
+
+#[test]
+fn test_rst_0() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    memory.write(0xFFFC, 0xFF);
+    cpu.execute(Instruction::Reset0 { location: 0xE }, &mut memory);
+
+    assert_eq!(cpu.stack_pointer, 0xFFFC);
+    assert_eq!(memory.read(cpu.stack_pointer), 0);
+    assert_eq!(cpu.program_counter, 20);
+}
+
+#[test]
+fn test_rst_8() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+
+    memory.write(0xFFFC, 0xFF);
+    cpu.execute(Instruction::Reset8 { location: 0xD }, &mut memory);
+
+    assert_eq!(cpu.stack_pointer, 0xFFFC);
+    assert_eq!(memory.read(cpu.stack_pointer), 0);
+    assert_eq!(cpu.program_counter, 18);
 }

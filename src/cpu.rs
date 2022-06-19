@@ -131,34 +131,32 @@ impl Cpu {
             (0x1, 0x0) => Instruction::Stop,
             (0x1, 0x2) => Instruction::LoadDEA,
             (0x1, 0x7) => Instruction::RotateALeftThroughCarry,
-            (0x1, 0x8) => Instruction::JumpRelative {
-                flag: ConditionalFlag::None,
-            },
+            (0x1, 0x8) => Instruction::JumpRelative,
             (0x1, 0xA) => Instruction::LoadADE,
             (0x1, 0xF) => Instruction::RotateARightThroughCarry,
-            (0x2, 0x0) => Instruction::JumpRelative {
+            (0x2, 0x0) => Instruction::JumpRelativeConditional {
                 flag: ConditionalFlag::NZ,
             },
             (0x2, 0x2) => Instruction::LoadIncrementHLA,
             (0x2, 0x7) => Instruction::DecimalAdjustA,
-            (0x2, 0x8) => Instruction::JumpRelative {
+            (0x2, 0x8) => Instruction::JumpRelativeConditional {
                 flag: ConditionalFlag::Z,
             },
             (0x2, 0xA) => Instruction::LoadIncrementAHL,
             (0x2, 0xF) => Instruction::Complement,
-            (0x3, 0x0) => Instruction::JumpRelative {
+            (0x3, 0x0) => Instruction::JumpRelativeConditional {
                 flag: ConditionalFlag::NC,
             },
             (0x3, 0x2) => Instruction::LoadDecrementHLA,
             (0x3, 0x4) => Instruction::IncrementHL,
             (0x3, 0x5) => Instruction::DecrementHL,
             (0x3, 0x6) => Instruction::LoadHL8,
-            (0x3, 0x7) => Instruction::Scf,
-            (0x3, 0x8) => Instruction::JumpRelative {
+            (0x3, 0x7) => Instruction::SetCarryFlag,
+            (0x3, 0x8) => Instruction::JumpRelativeConditional {
                 flag: ConditionalFlag::C,
             },
             (0x3, 0xA) => Instruction::LoadDecrementAHL,
-            (0x3, 0xF) => Instruction::Ccf,
+            (0x3, 0xF) => Instruction::FlipCarryFlag,
             (0x4, 0x6) => Instruction::LoadRegHL {
                 register: Register::B,
             },
@@ -333,86 +331,50 @@ impl Cpu {
                     }
                 }
             }
-            (0xC, 0x0) => Instruction::ReturnIfNotZero,
-            (0xC, 0x2) => {
-                let high = memory.rom[self.program_counter as usize + 1];
-                let low = memory.rom[self.program_counter as usize + 2];
-
-                let address = ((high as u16) << 8) + low as u16;
-                Instruction::JumpIfNotZero { address }
-            }
-            (0xC, 0x3) => {
-                let high = memory.rom[self.program_counter as usize + 1];
-                let low = memory.rom[self.program_counter as usize + 2];
-
-                let address = ((high as u16) << 8) + low as u16;
-                Instruction::Jump { address }
-            }
-            (0xC, 0x4) => {
-                let high = memory.rom[self.program_counter as usize + 1];
-                let low = memory.rom[self.program_counter as usize + 2];
-
-                let address = ((high as u16) << 8) + low as u16;
-                Instruction::CallIfNotZero { address }
-            }
+            (0xC, 0x0) => Instruction::ReturnConditional {
+                flag: ConditionalFlag::NZ,
+            },
+            (0xC, 0x2) => Instruction::JumpConditional {
+                flag: ConditionalFlag::NZ,
+            },
+            (0xC, 0x3) => Instruction::Jump,
+            (0xC, 0x4) => Instruction::CallConditinal {
+                flag: ConditionalFlag::NZ,
+            },
             (0xC, 0x6) => Instruction::AddA,
-            (0xC, 0x8) => Instruction::ReturnIfZero,
+            (0xC, 0x8) => Instruction::ReturnConditional {
+                flag: ConditionalFlag::Z,
+            },
             (0xC, 0x9) => Instruction::Return,
-            (0xC, 0xA) => {
-                let high = memory.rom[self.program_counter as usize + 1];
-                let low = memory.rom[self.program_counter as usize + 2];
-
-                let address = ((high as u16) << 8) + low as u16;
-                Instruction::JumpIfZero { address }
-            }
+            (0xC, 0xA) => Instruction::JumpConditional {
+                flag: ConditionalFlag::Z,
+            },
             (0xC, 0xB) => self.parse_prefix(memory),
-            (0xC, 0xC) => {
-                let high = memory.rom[self.program_counter as usize + 1];
-                let low = memory.rom[self.program_counter as usize + 2];
-
-                let address = ((high as u16) << 8) + low as u16;
-                Instruction::CallIfZero { address }
-            }
-            (0xC, 0xD) => {
-                let high = memory.rom[self.program_counter as usize + 1];
-                let low = memory.rom[self.program_counter as usize + 2];
-
-                let address = ((high as u16) << 8) + low as u16;
-                Instruction::Call { address }
-            }
+            (0xC, 0xC) => Instruction::CallConditinal {
+                flag: ConditionalFlag::Z,
+            },
+            (0xC, 0xD) => Instruction::Call,
             (0xC, 0xE) => Instruction::AddCarryA,
-            (0xD, 0x0) => Instruction::ReturnIfNotCarry,
-            (0xD, 0x2) => {
-                let high = memory.rom[self.program_counter as usize + 1];
-                let low = memory.rom[self.program_counter as usize + 2];
-
-                let address = ((high as u16) << 8) + low as u16;
-                Instruction::JumpIfNotCarry { address }
-            }
-            (0xD, 0x3) => {
-                let high = memory.rom[self.program_counter as usize + 1];
-                let low = memory.rom[self.program_counter as usize + 2];
-
-                let address = ((high as u16) << 8) + low as u16;
-                Instruction::CallIfNotCarry { address }
-            }
+            (0xD, 0x0) => Instruction::ReturnConditional {
+                flag: ConditionalFlag::NC,
+            },
+            (0xD, 0x2) => Instruction::JumpConditional {
+                flag: ConditionalFlag::NC,
+            },
+            (0xD, 0x3) => Instruction::CallConditinal {
+                flag: ConditionalFlag::NC,
+            },
             (0xD, 0x6) => Instruction::SubtractA,
-            (0xD, 0x8) => Instruction::ReturnIfCarry,
+            (0xD, 0x8) => Instruction::ReturnConditional {
+                flag: ConditionalFlag::C,
+            },
             (0xD, 0x9) => Instruction::ReturnAndEnableInterrupts,
-            (0xD, 0xA) => {
-                let high = memory.rom[self.program_counter as usize + 1];
-                let low = memory.rom[self.program_counter as usize + 2];
-
-                let address = ((high as u16) << 8) + low as u16;
-                Instruction::JumpIfCarry { address }
-            }
-            (0xD, 0xC) => {
-                let high = memory.rom[self.program_counter as usize + 1];
-                let low = memory.rom[self.program_counter as usize + 2];
-
-                let address = ((high as u16) << 8) + low as u16;
-                Instruction::CallIfCarry { address }
-            }
+            (0xD, 0xA) => Instruction::JumpConditional {
+                flag: ConditionalFlag::C,
+            },
+            (0xD, 0xC) => Instruction::CallConditinal {
+                flag: ConditionalFlag::C,
+            },
             (0xD, 0xE) => Instruction::SubtractACarry,
             (0xE, 0x0) => Instruction::LoadOffsetA,
             (0xE, 0x2) => Instruction::LoadOffsetCA,
@@ -793,6 +755,7 @@ impl Cpu {
 
     pub fn execute(&mut self, instruction: Instruction, memory: &mut Memory) {
         match instruction {
+            Instruction::Invalid => todo!(),
             // 8-bit load instructions
             Instruction::LoadReg {
                 load_from: src,
@@ -2011,18 +1974,69 @@ impl Cpu {
 
                 self.program_counter += 2;
             }
-            
-            //-----------------------------
-            Instruction::Invalid => todo!(),
+
+            // CPU Control instructions
+            Instruction::FlipCarryFlag => {
+                self.set_carry(!self.is_carry());
+                self.program_counter += 1;
+            }
+            Instruction::SetCarryFlag => {
+                self.set_carry(true);
+                self.program_counter += 1;
+            }
             Instruction::Nop => {
                 self.program_counter += 1;
             }
+            Instruction::Halt => todo!(),
             Instruction::Stop => todo!(),
-            Instruction::JumpRelative { flag } => {
-                let offset = memory.rom[self.program_counter as usize + 1] as i8;
+            Instruction::DisableInterrupts => {
+                memory.write(0xFFFF, 0);
+                self.program_counter += 1;
+            }
+            Instruction::EnableInterrupts => {
+                memory.write(0xFFFF, 1);
+                self.program_counter += 1;
+            }
+
+            // Jump instructions
+            Instruction::Jump => {
+                let high = memory.read(self.program_counter + 1);
+                let low = memory.read(self.program_counter + 2);
+                self.program_counter = combine_bytes(high, low);
+            }
+            Instruction::JumpHL => {
+                self.program_counter = self.hl();
+            }
+            Instruction::JumpConditional { flag } => {
+                let high = memory.read(self.program_counter + 1);
+                let low = memory.read(self.program_counter + 2);
 
                 let predicate = match flag {
-                    ConditionalFlag::None => true,
+                    ConditionalFlag::NZ => !self.is_zero(),
+                    ConditionalFlag::Z => self.is_zero(),
+                    ConditionalFlag::NC => !self.is_carry(),
+                    ConditionalFlag::C => self.is_carry(),
+                };
+
+                if predicate {
+                    self.program_counter = combine_bytes(high, low);
+                } else {
+                    self.program_counter += 3;
+                }
+            }
+            Instruction::JumpRelative => {
+                let offset = memory.read(self.program_counter + 1) as i8;
+
+                if offset > 0 {
+                    self.program_counter += offset as u16;
+                } else {
+                    self.program_counter -= offset.abs() as u16;
+                }
+            }
+            Instruction::JumpRelativeConditional { flag } => {
+                let offset = memory.read(self.program_counter + 1) as i8;
+
+                let predicate = match flag {
                     ConditionalFlag::NZ => !self.is_zero(),
                     ConditionalFlag::Z => self.is_zero(),
                     ConditionalFlag::NC => !self.is_carry(),
@@ -2036,35 +2050,76 @@ impl Cpu {
                         self.program_counter -= offset.abs() as u16;
                     }
                 } else {
+                    self.program_counter += 2;
+                }
+            }
+            Instruction::Call => {
+                let high = memory.read(self.program_counter + 1);
+                let low = memory.read(self.program_counter + 2);
+
+                self.stack_pointer -= 2;
+                memory.write16(self.stack_pointer, self.program_counter);
+                self.program_counter = combine_bytes(high, low);
+            }
+            Instruction::CallConditinal { flag } => {
+                let high = memory.read(self.program_counter + 1);
+                let low = memory.read(self.program_counter + 2);
+
+                let predicate = match flag {
+                    ConditionalFlag::NZ => !self.is_zero(),
+                    ConditionalFlag::Z => self.is_zero(),
+                    ConditionalFlag::NC => !self.is_carry(),
+                    ConditionalFlag::C => self.is_carry(),
+                };
+
+                if predicate {
+                    self.stack_pointer -= 2;
+                    memory.write16(self.stack_pointer, self.program_counter);
+                    self.program_counter = combine_bytes(high, low);
+                } else {
+                    self.program_counter += 3;
+                }
+            }
+            Instruction::Return => {
+                let high = memory.read(self.stack_pointer);
+                let low = memory.read(self.stack_pointer + 1);
+                self.program_counter = combine_bytes(high, low);
+                self.stack_pointer += 2;
+            }
+            Instruction::ReturnConditional { flag } => {
+                let predicate = match flag {
+                    ConditionalFlag::NZ => !self.is_zero(),
+                    ConditionalFlag::Z => self.is_zero(),
+                    ConditionalFlag::NC => !self.is_carry(),
+                    ConditionalFlag::C => self.is_carry(),
+                };
+
+                if predicate {
+                    let high = memory.read(self.stack_pointer);
+                    let low = memory.read(self.stack_pointer + 1);
+                    self.program_counter = combine_bytes(high, low);
+                    self.stack_pointer += 2;
+                } else {
                     self.program_counter += 1;
                 }
             }
-
-            //TODO
-            Instruction::Scf => todo!(),
-            Instruction::Ccf => todo!(),
-            Instruction::Halt => todo!(),
-            Instruction::ReturnIfNotZero => todo!(),
-            Instruction::JumpIfNotZero { address } => todo!(),
-            Instruction::Jump { address } => todo!(),
-            Instruction::CallIfNotZero { address } => todo!(),
-            Instruction::ReturnIfZero => todo!(),
-            Instruction::Return => todo!(),
-            Instruction::JumpIfZero { address } => todo!(),
-            Instruction::CallIfZero { address } => todo!(),
-            Instruction::Call { address } => todo!(),
-            Instruction::ReturnIfNotCarry => todo!(),
-            Instruction::JumpIfNotCarry { address } => todo!(),
-            Instruction::CallIfNotCarry { address } => todo!(),
-            Instruction::ReturnIfCarry => todo!(),
-            Instruction::ReturnAndEnableInterrupts => todo!(),
-            Instruction::JumpIfCarry { address } => todo!(),
-            Instruction::CallIfCarry { address } => todo!(),
-            Instruction::JumpHL => todo!(),
-            Instruction::DisableInterrupts => todo!(),
-            Instruction::EnableInterrupts => todo!(),
-            Instruction::Reset0 { location } => todo!(),
-            Instruction::Reset8 { location } => todo!(),
+            Instruction::ReturnAndEnableInterrupts => {
+                let high = memory.read(self.stack_pointer);
+                let low = memory.read(self.stack_pointer + 1);
+                memory.write(0xFFFF, 1);
+                self.program_counter = combine_bytes(high, low);
+                self.stack_pointer += 2;
+            }
+            Instruction::Reset0 { location } => {
+                self.stack_pointer -= 2;
+                memory.write16(self.stack_pointer, self.program_counter);
+                self.program_counter = ((location % 4) * 10) as u16;
+            }
+            Instruction::Reset8 { location } => {
+                self.stack_pointer -= 2;
+                memory.write16(self.stack_pointer, self.program_counter);
+                self.program_counter = (((location % 4) * 10) + 8) as u16;
+            }
         }
     }
 
