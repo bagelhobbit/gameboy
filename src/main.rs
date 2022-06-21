@@ -47,9 +47,17 @@ fn main() {
         .unwrap();
 
     let (width, height) = window.size();
+    let pixel_width = width / 160;
+    let pixel_height = height / 144;
+
+    let color0 = Color::RGB(0x08, 0x18, 0x20);
+    let color1 = Color::RGB(0x34, 0x68, 0x56);
+    let color2 = Color::RGB(0x88, 0xC0, 0x70);
+    let color3 = Color::RGB(0xE0, 0xF8, 0xD0);
 
     let mut canvas = window.into_canvas().build().unwrap();
-    canvas.set_draw_color(Color::RGB(0, 255, 255));
+    // canvas.set_draw_color(Color::RGB(0, 255, 255));
+    canvas.set_draw_color(color3);
     canvas.clear();
     canvas.present();
 
@@ -76,7 +84,7 @@ fn main() {
         //         .collect();
 
         for _ in 0..20 {
-            let instruction = cpu.parse(&memory);
+            let instruction = cpu.parse(&mut memory);
 
             println!(
                 "${:0>4X?} - 0x{:0>2X?} - {:?}",
@@ -124,14 +132,6 @@ fn main() {
 
         // canvas.set_draw_color(Color::RGB(0, 255, 255));
         // canvas.fill_rects(&blank_rects).unwrap();
-
-        let pixel_width = width / 160;
-        let pixel_height = height / 144;
-
-        let color0 = Color::RGB(0x08, 0x18, 0x20);
-        let color1 = Color::RGB(0x34, 0x68, 0x56);
-        let color2 = Color::RGB(0x88, 0xC0, 0x70);
-        let color3 = Color::RGB(0xE0, 0xF8, 0xD0);
 
         canvas.present();
         // std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));

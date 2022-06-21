@@ -388,6 +388,7 @@ fn test_load_sp_hl() {
 fn test_push_rr() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     cpu.stack_pointer = 0x1102;
     cpu.a = 0xE5;
@@ -2087,7 +2088,8 @@ fn test_ret() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    memory.write16(0xFFFC, 0x1100);
+    memory.write(0xFFFC, 0x11);
+    memory.write(0xFFFD, 0x00);
     cpu.stack_pointer -= 2;
     cpu.execute(Instruction::Return, &mut memory);
 
@@ -2101,7 +2103,8 @@ fn test_ret_conditional() {
     let mut memory = Memory::new();
     let flag = ConditionalFlag::Z;
 
-    memory.write16(0xFFFA, 0x1100);
+    memory.write(0xFFFA, 0x11);
+    memory.write(0xFFFB, 0x00);
     cpu.stack_pointer -= 4;
     cpu.set_zero(true);
     cpu.execute(Instruction::ReturnConditional { flag }, &mut memory);
@@ -2121,7 +2124,8 @@ fn test_reti() {
     let mut memory = Memory::new();
 
     memory.write(0xFFFF, 0);
-    memory.write16(0xFFFC, 0x1100);
+    memory.write(0xFFFC, 0x11);
+    memory.write(0xFFFD, 0x00);
     cpu.stack_pointer -= 2;
     cpu.execute(Instruction::ReturnAndEnableInterrupts, &mut memory);
 

@@ -49,6 +49,9 @@ pub struct Memory {
     boot_rom: [u8; 0x100],
     cartridge_type: CartridgeType,
     use_boot_rom: bool,
+    time: u16,
+    frame_happened: bool,
+    ly: u8,
 }
 
 // I/O Ranges
@@ -76,6 +79,9 @@ impl Memory {
             boot_rom: [0; 0x100],
             cartridge_type: CartridgeType::Rom,
             use_boot_rom: true,
+            time: 0,
+            frame_happened: false,
+            ly: 0,
         }
     }
 
@@ -135,7 +141,12 @@ impl Memory {
     //memory mapper
     // should this take a length as well?, or just map one address at a time
     // also might want to move this into some sort of address bus type (rename `Memory` to `AddressBus` and make arrays private?)
-    pub fn read(&self, address: u16) -> u8 {
+    pub fn read(&mut self, address: u16) -> u8 {
+        self.step();
+        self.step();
+        self.step();
+        self.step();
+
         if self.use_boot_rom && address < 256 {
             self.boot_rom[address as usize]
         } else if address <= 0x3FFF {
@@ -170,8 +181,12 @@ impl Memory {
             //prohibited
             todo!()
         } else if address <= 0xFF7F {
-            let mapped = address - 0xFF00;
-            self.io_registers[mapped as usize]
+            if address == 0xFF44 {
+                self.ly
+            } else {
+                let mapped = address - 0xFF00;
+                self.io_registers[mapped as usize]
+            }
         } else if address <= 0xFFFE {
             let mapped = address - 0xFF80;
             self.hram[mapped as usize]
@@ -185,6 +200,11 @@ impl Memory {
     }
 
     pub fn write(&mut self, address: u16, data: u8) {
+        self.step();
+        self.step();
+        self.step();
+        self.step();
+
         if address <= 0x3FFF {
             self.rom[address as usize] = data;
         } else if address <= 0x7FFF {
@@ -213,7 +233,11 @@ impl Memory {
                 self.use_boot_rom = false;
                 println!("disable boot rom");
             }
-            self.io_registers[mapped as usize] = data;
+            if address == 0xFF44 {
+                self.ly = data;
+            } else {
+                self.io_registers[mapped as usize] = data;
+            }
         } else if address <= 0xFFFE {
             let mapped = address - 0xFF80;
             self.hram[mapped as usize] = data;
@@ -226,48 +250,16 @@ impl Memory {
         }
     }
 
-    pub fn write16(&mut self, address: u16, data: u16) {
-        if address <= 0x3FFF {
-            self.rom[address as usize] = get_upper_byte(data);
-            self.rom[address as usize + 1] = get_lower_byte(data);
-        } else if address <= 0x7FFF {
-            self.switchable_rom[0][address as usize] = get_upper_byte(data);
-            self.switchable_rom[0][address as usize + 1] = get_lower_byte(data);
-        } else if address <= 0x9FFF {
-            let mapped = address - 0x8000;
-            self.vram[mapped as usize] = get_upper_byte(data);
-            self.vram[mapped as usize + 1] = get_lower_byte(data);
-        } else if address <= 0xBFFF {
-            let mapped = address - 0xA000;
-            self.ram[mapped as usize] = get_upper_byte(data);
-            self.ram[mapped as usize + 1] = get_lower_byte(data);
-        } else if address <= 0xDFFF {
-            let mapped = address - 0xC000;
-            self.wram[mapped as usize] = get_upper_byte(data);
-            self.wram[mapped as usize + 1] = get_lower_byte(data);
-        } else if address <= 0xFDFF {
-            //echo ram
-            todo!()
-        } else if address <= 0xFE9F {
-            let mapped = address - 0xFE00;
-            self.sprite_attribute_table[mapped as usize] = get_upper_byte(data);
-            self.sprite_attribute_table[mapped as usize + 1] = get_lower_byte(data);
-        } else if address <= 0xFEFF {
-            //prohibited
-            todo!()
-        } else if address <= 0xFF7F {
-            let mapped = address - 0xFF00;
-            self.io_registers[mapped as usize] = get_upper_byte(data);
-            self.io_registers[mapped as usize + 1] = get_lower_byte(data);
-        } else if address <= 0xFFFE {
-            let mapped = address - 0xFF80;
-            self.hram[mapped as usize] = get_upper_byte(data);
-            self.hram[mapped as usize + 1] = get_lower_byte(data);
-        } else {
-            if data == 0 {
-                self.interrupt_enable_register = false;
-            } else {
-                self.interrupt_enable_register = true;
+    fn step(&mut self) {
+        self.time += 1;
+
+        if self.time == 456 {
+            self.time = 0;
+            self.ly += 1;
+
+            if self.ly == 154 {
+                self.ly = 0;
+                self.frame_happened = true;
             }
         }
     }

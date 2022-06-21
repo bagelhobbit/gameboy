@@ -120,7 +120,7 @@ impl Cpu {
         }
     }
 
-    pub fn parse(&mut self, memory: &Memory) -> Instruction {
+    pub fn parse(&mut self, memory: &mut Memory) -> Instruction {
         if self.booting && !memory.using_boot_rom() {
             self.program_counter = 0x0100;
             self.booting = false;
@@ -516,7 +516,7 @@ impl Cpu {
         }
     }
 
-    fn parse_prefix(&mut self, memory: &Memory) -> Instruction {
+    fn parse_prefix(&mut self, memory: &mut Memory) -> Instruction {
         let instruction = memory.read(self.program_counter + 1);
 
         let registers = [
@@ -942,7 +942,8 @@ impl Cpu {
                 let low = memory.read(self.program_counter + 2);
                 let address = combine_bytes(high, low);
 
-                memory.write16(address, self.stack_pointer);
+                memory.write(address, get_upper_byte(self.stack_pointer));
+                memory.write(address + 1, get_lower_byte(self.stack_pointer));
                 self.program_counter += 3;
             }
             Instruction::LoadSPHL => {
@@ -953,11 +954,21 @@ impl Cpu {
                 self.stack_pointer -= 2;
 
                 match register {
-                    DoubleRegister::BC => memory.write16(self.stack_pointer, self.bc()),
-                    DoubleRegister::DE => memory.write16(self.stack_pointer, self.de()),
-                    DoubleRegister::HL => memory.write16(self.stack_pointer, self.hl()),
+                    DoubleRegister::BC => {
+                        memory.write(self.stack_pointer, self.b);
+                        memory.write(self.stack_pointer + 1, self.c);
+                    }
+                    DoubleRegister::DE => {
+                        memory.write(self.stack_pointer, self.d);
+                        memory.write(self.stack_pointer + 1, self.e);
+                    }
+                    DoubleRegister::HL => {
+                        memory.write(self.stack_pointer, self.h);
+                        memory.write(self.stack_pointer + 1, self.l);
+                    }
                     DoubleRegister::AF => {
-                        memory.write16(self.stack_pointer, combine_bytes(self.a, self.f))
+                        memory.write(self.stack_pointer, self.a);
+                        memory.write(self.stack_pointer + 1, self.f);
                     }
                     _ => panic!("Invalid Instruction"),
                 }
@@ -2078,7 +2089,8 @@ impl Cpu {
 
                 self.program_counter += 1;
                 self.stack_pointer -= 2;
-                memory.write16(self.stack_pointer, self.program_counter);
+                memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
+                memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
                 self.program_counter = combine_bytes(high, low);
             }
             Instruction::CallConditional { flag } => {
@@ -2094,9 +2106,10 @@ impl Cpu {
 
                 self.program_counter += 3;
 
-                if predicate {   
+                if predicate {
                     self.stack_pointer -= 2;
-                    memory.write16(self.stack_pointer, self.program_counter);
+                    memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
+                    memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
                     self.program_counter = combine_bytes(high, low);
                 }
             }
@@ -2132,12 +2145,14 @@ impl Cpu {
             }
             Instruction::Reset0 { location } => {
                 self.stack_pointer -= 2;
-                memory.write16(self.stack_pointer, self.program_counter);
+                memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
+                memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
                 self.program_counter = ((location % 4) * 10) as u16;
             }
             Instruction::Reset8 { location } => {
                 self.stack_pointer -= 2;
-                memory.write16(self.stack_pointer, self.program_counter);
+                memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
+                memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
                 self.program_counter = (((location % 4) * 10) + 8) as u16;
             }
         }
