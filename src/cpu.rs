@@ -18,6 +18,7 @@ pub struct Cpu {
     pub f: u8,
     pub stack_pointer: u16,
     pub program_counter: u16,
+    booting: bool,
 }
 
 impl Cpu {
@@ -33,6 +34,7 @@ impl Cpu {
             f: 0,
             stack_pointer: 0xFFFE,
             program_counter: 0,
+            booting: true,
         }
     }
 
@@ -119,7 +121,12 @@ impl Cpu {
     }
 
     pub fn parse(&mut self, memory: &Memory) -> Instruction {
-        let instruction = memory.rom[self.program_counter as usize];
+        if self.booting && !memory.using_boot_rom() {
+            self.program_counter = 0x0100;
+            self.booting = false;
+        }
+
+        let instruction = memory.read(self.program_counter);
 
         match (get_upper_bits(instruction), get_lower_bits(instruction)) {
             (0x0, 0x0) => Instruction::Nop,
@@ -339,7 +346,7 @@ impl Cpu {
                 flag: ConditionalFlag::NZ,
             },
             (0xC, 0x3) => Instruction::Jump,
-            (0xC, 0x4) => Instruction::CallConditinal {
+            (0xC, 0x4) => Instruction::CallConditional {
                 flag: ConditionalFlag::NZ,
             },
             (0xC, 0x6) => Instruction::AddA,
@@ -351,7 +358,7 @@ impl Cpu {
                 flag: ConditionalFlag::Z,
             },
             (0xC, 0xB) => self.parse_prefix(memory),
-            (0xC, 0xC) => Instruction::CallConditinal {
+            (0xC, 0xC) => Instruction::CallConditional {
                 flag: ConditionalFlag::Z,
             },
             (0xC, 0xD) => Instruction::Call,
@@ -362,7 +369,7 @@ impl Cpu {
             (0xD, 0x2) => Instruction::JumpConditional {
                 flag: ConditionalFlag::NC,
             },
-            (0xD, 0x3) => Instruction::CallConditinal {
+            (0xD, 0x3) => Instruction::CallConditional {
                 flag: ConditionalFlag::NC,
             },
             (0xD, 0x6) => Instruction::SubtractA,
@@ -373,7 +380,7 @@ impl Cpu {
             (0xD, 0xA) => Instruction::JumpConditional {
                 flag: ConditionalFlag::C,
             },
-            (0xD, 0xC) => Instruction::CallConditinal {
+            (0xD, 0xC) => Instruction::CallConditional {
                 flag: ConditionalFlag::C,
             },
             (0xD, 0xE) => Instruction::SubtractACarry,
@@ -510,7 +517,7 @@ impl Cpu {
     }
 
     fn parse_prefix(&mut self, memory: &Memory) -> Instruction {
-        let instruction = memory.rom[self.program_counter as usize + 1];
+        let instruction = memory.read(self.program_counter + 1);
 
         let registers = [
             Register::B,
@@ -906,8 +913,8 @@ impl Cpu {
 
             // 16-bit load instructions
             Instruction::LoadReg16 { register } => {
-                let upper = memory.read(self.program_counter + 1);
-                let lower = memory.read(self.program_counter + 2);
+                let lower = memory.read(self.program_counter + 1);
+                let upper = memory.read(self.program_counter + 2);
 
                 match register {
                     DoubleRegister::BC => {
@@ -921,9 +928,9 @@ impl Cpu {
                     DoubleRegister::HL => {
                         self.h = upper;
                         self.l = lower;
-                    },
+                    }
                     DoubleRegister::SP => {
-                        self.stack_pointer = combine_bytes(lower, upper);
+                        self.stack_pointer = combine_bytes(upper, lower);
                     }
                     _ => panic!("Invalid Instruction"),
                 }
@@ -1504,7 +1511,7 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::AddSPOffset => {
-                let offset = memory.rom[self.program_counter as usize + 1] as i8;
+                let offset = memory.read(self.program_counter + 1) as i8;
 
                 self.set_zero(false);
                 self.set_subtraction(false);
@@ -1531,7 +1538,7 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::LoadHLSPOffset => {
-                let offset = memory.rom[self.program_counter as usize + 1] as i8;
+                let offset = memory.read(self.program_counter + 1) as i8;
 
                 self.set_zero(false);
                 self.set_subtraction(false);
@@ -2010,8 +2017,8 @@ impl Cpu {
 
             // Jump instructions
             Instruction::Jump => {
-                let high = memory.read(self.program_counter + 1);
-                let low = memory.read(self.program_counter + 2);
+                let low = memory.read(self.program_counter + 1);
+                let high = memory.read(self.program_counter + 2);
                 self.program_counter = combine_bytes(high, low);
             }
             Instruction::JumpHL => {
@@ -2037,6 +2044,8 @@ impl Cpu {
             Instruction::JumpRelative => {
                 let offset = memory.read(self.program_counter + 1) as i8;
 
+                self.program_counter += 2;
+
                 if offset > 0 {
                     self.program_counter += offset as u16;
                 } else {
@@ -2053,27 +2062,26 @@ impl Cpu {
                     ConditionalFlag::C => self.is_carry(),
                 };
 
+                self.program_counter += 2;
+
                 if predicate {
                     if offset > 0 {
                         self.program_counter += offset as u16;
                     } else {
                         self.program_counter -= offset.abs() as u16;
                     }
-                } else {
-                    self.program_counter += 2;
                 }
             }
             Instruction::Call => {
                 let low = memory.read(self.program_counter + 1);
                 let high = memory.read(self.program_counter + 2);
 
-                println!("SP: 0x{:0>4X?}", self.stack_pointer);
-
+                self.program_counter += 1;
                 self.stack_pointer -= 2;
                 memory.write16(self.stack_pointer, self.program_counter);
                 self.program_counter = combine_bytes(high, low);
             }
-            Instruction::CallConditinal { flag } => {
+            Instruction::CallConditional { flag } => {
                 let low = memory.read(self.program_counter + 1);
                 let high = memory.read(self.program_counter + 2);
 
@@ -2084,12 +2092,12 @@ impl Cpu {
                     ConditionalFlag::C => self.is_carry(),
                 };
 
-                if predicate {
+                self.program_counter += 3;
+
+                if predicate {   
                     self.stack_pointer -= 2;
                     memory.write16(self.stack_pointer, self.program_counter);
                     self.program_counter = combine_bytes(high, low);
-                } else {
-                    self.program_counter += 3;
                 }
             }
             Instruction::Return => {

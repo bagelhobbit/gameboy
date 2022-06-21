@@ -317,7 +317,7 @@ pub enum Instruction {
     /// 0xCD - CALL a16
     Call,
     /// CALL f, a16
-    CallConditinal {
+    CallConditional {
         flag: ConditionalFlag
     },
     /// 0xC9 - RET

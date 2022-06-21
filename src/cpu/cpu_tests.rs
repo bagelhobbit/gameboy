@@ -40,6 +40,7 @@ fn test_load_reg() {
 fn test_load_reg_8() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     memory.rom[1] = 0xE5;
 
@@ -98,6 +99,7 @@ fn test_load_hl_reg() {
 fn test_load_hl_8() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     cpu.h = 0x11;
     cpu.l = 0x00;
@@ -143,6 +145,7 @@ fn test_load_a_de() {
 fn test_load_a_address() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     memory.rom[1] = 0x11;
     memory.rom[2] = 0x00;
@@ -188,6 +191,7 @@ fn test_load_de_a() {
 fn test_load_address_a() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     cpu.a = 0xE5;
     memory.rom[1] = 0x11;
@@ -203,6 +207,7 @@ fn test_load_address_a() {
 fn test_load_a_offset() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     memory.rom[1] = 0x01;
     memory.io_registers[1] = 0xE5;
@@ -217,6 +222,7 @@ fn test_load_a_offset() {
 fn test_load_offset_a() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     cpu.a = 0xE5;
     memory.rom[1] = 0x01;
@@ -276,6 +282,7 @@ fn test_load_inc_hl_a() {
 fn test_load_inc_a_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     cpu.h = 0x00;
     cpu.l = 0xFF;
@@ -329,6 +336,7 @@ fn test_load_dec_a_hl() {
 fn test_load_reg_16() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     memory.rom[1] = 0x55;
     memory.rom[2] = 0xEE;
@@ -349,6 +357,7 @@ fn test_load_reg_16() {
 fn test_load_address_sp() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     cpu.stack_pointer = 0xABCD;
     memory.rom[1] = 0x1F;
@@ -598,6 +607,7 @@ fn test_and_a_reg_zero() {
 fn test_and_a() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     cpu.a = 0b0011_0011;
     memory.rom[1] = 0b0010_1111;
@@ -720,6 +730,7 @@ fn test_xor_a_reg_zero() {
 fn test_xor_a() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     cpu.a = 0b1010_1010;
     memory.rom[1] = 0b0101_0101;
@@ -738,6 +749,7 @@ fn test_xor_a() {
 fn test_xor_a_zero() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     cpu.a = 0xF0;
     memory.rom[1] = 0xF0;
@@ -842,6 +854,7 @@ fn test_or_a_reg_zero() {
 fn test_or_a() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     cpu.a = 0b1010_1010;
     memory.rom[1] = 0b1111_1111;
@@ -1252,9 +1265,9 @@ fn test_dec_rr_overflow() {
 fn test_add_sp_offset_postive() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
-    cpu.stack_pointer = 0xFFFF;
-    memory.rom[1] = 1;
+    memory.rom[1] = 2;
     cpu.execute(Instruction::AddSPOffset, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0);
@@ -1269,16 +1282,16 @@ fn test_add_sp_offset_postive() {
 fn test_add_sp_offset_negative() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
-    cpu.stack_pointer = 5;
     memory.rom[1] = (-10 as i8) as u8;
     cpu.execute(Instruction::AddSPOffset, &mut memory);
 
-    assert_eq!(cpu.stack_pointer, 0xFFFF - 5);
+    assert_eq!(cpu.stack_pointer, 0xFFFE - 10);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_half_carry(), false);
+    assert_eq!(cpu.is_carry(), false);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1286,9 +1299,9 @@ fn test_add_sp_offset_negative() {
 fn test_load_hl_sp_offset_postive() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
-    cpu.stack_pointer = 0xFFFF;
-    memory.rom[1] = 1;
+    memory.rom[1] = 2;
     cpu.execute(Instruction::LoadHLSPOffset, &mut memory);
 
     assert_eq!(cpu.hl(), 0);
@@ -1303,16 +1316,16 @@ fn test_load_hl_sp_offset_postive() {
 fn test_load_hl_sp_offset_negative() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
-    cpu.stack_pointer = 5;
     memory.rom[1] = (-10 as i8) as u8;
     cpu.execute(Instruction::LoadHLSPOffset, &mut memory);
 
-    assert_eq!(cpu.hl(), 0xFFFF - 5);
+    assert_eq!(cpu.hl(), 0xFFFE - 10);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_half_carry(), false);
+    assert_eq!(cpu.is_carry(), false);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1948,9 +1961,10 @@ fn test_ei() {
 fn test_jp() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
-    memory.rom[1] = 0x11;
-    memory.rom[2] = 0x00;
+    memory.rom[1] = 0x00;
+    memory.rom[2] = 0x11;
     cpu.execute(Instruction::Jump, &mut memory);
 
     assert_eq!(cpu.program_counter, 0x1100);
@@ -1973,6 +1987,7 @@ fn test_jp_hl() {
 fn test_jp_flags() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     let flag = ConditionalFlag::NZ;
     memory.rom[1] = 0x11;
@@ -1993,24 +2008,26 @@ fn test_jp_flags() {
 fn test_jr() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     let pc = cpu.program_counter;
     memory.rom[1] = 25;
     // -20 as a u8, should be equal to 236
-    memory.rom[1 + 25] = 0b1110_1100;
+    memory.rom[1 + 2 + 25] = 0b1110_1100;
 
     cpu.execute(Instruction::JumpRelative, &mut memory);
-    assert_eq!(cpu.program_counter, pc + 25);
+    assert_eq!(cpu.program_counter, pc + 2 + 25);
 
     let pc = cpu.program_counter;
     cpu.execute(Instruction::JumpRelative, &mut memory);
-    assert_eq!(cpu.program_counter, pc - 20);
+    assert_eq!(cpu.program_counter, pc + 2 - 20);
 }
 
 #[test]
 fn test_jr_flags() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     let pc = cpu.program_counter;
     let flag = ConditionalFlag::NZ;
@@ -2018,7 +2035,7 @@ fn test_jr_flags() {
     memory.rom[1 + 25] = 25;
 
     cpu.execute(Instruction::JumpRelativeConditional { flag }, &mut memory);
-    assert_eq!(cpu.program_counter, pc + 25);
+    assert_eq!(cpu.program_counter, pc + 2 + 25);
 
     let pc = cpu.program_counter;
     cpu.set_zero(true);
@@ -2030,6 +2047,7 @@ fn test_jr_flags() {
 fn test_call() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
 
     memory.rom[1] = 0x00;
     memory.rom[2] = 0x11;
@@ -2045,19 +2063,20 @@ fn test_call() {
 fn test_call_conditional() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
+    memory.write(0xFF50, 1);
     let flag = ConditionalFlag::NC;
 
     memory.rom[1] = 0x00;
     memory.rom[2] = 0x11;
     memory.write(0xFFFC, 0xFF);
-    cpu.execute(Instruction::CallConditinal { flag }, &mut memory);
+    cpu.execute(Instruction::CallConditional { flag }, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0xFFFC);
     assert_eq!(memory.read(cpu.stack_pointer), 0);
     assert_eq!(cpu.program_counter, 0x1100);
 
     cpu.set_carry(true);
-    cpu.execute(Instruction::CallConditinal { flag }, &mut memory);
+    cpu.execute(Instruction::CallConditional { flag }, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0xFFFC);
     assert_eq!(cpu.program_counter, 0x1100 + 3);
