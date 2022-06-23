@@ -2281,7 +2281,7 @@ impl Cpu {
     fn test_bit(&mut self, position: u8, value: u8) {
         let bits = get_as_bits(value);
 
-        if position < 7 {
+        if position < 8 {
             self.set_zero(bits[7 - position as usize] == 0);
         }
     }
@@ -2292,7 +2292,7 @@ impl Cpu {
     fn set_bit(&mut self, position: u8, value: u8) -> u8 {
         let mut bits = get_as_bits(value);
 
-        if position < 7 {
+        if position < 8 {
             bits[7 - position as usize] = 1;
             bits_to_u8(bits)
         } else {
@@ -2306,7 +2306,7 @@ impl Cpu {
     fn reset_bit(&mut self, position: u8, value: u8) -> u8 {
         let mut bits = get_as_bits(value);
 
-        if position < 7 {
+        if position < 8 {
             bits[7 - position as usize] = 0;
             bits_to_u8(bits)
         } else {

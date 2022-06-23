@@ -1779,10 +1779,10 @@ fn test_test_bit_false() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.d = 0b1010_0000;
+    cpu.d = 0b0010_0001;
     cpu.execute(
         Instruction::TestBit {
-            bit: 0,
+            bit: 7,
             register: Register::D,
         },
         &mut memory,
