@@ -923,7 +923,7 @@ impl Cpu {
                     }
                     DoubleRegister::DE => {
                         self.d = upper;
-                        self.c = lower;
+                        self.e = lower;
                     }
                     DoubleRegister::HL => {
                         self.h = upper;
@@ -2087,7 +2087,7 @@ impl Cpu {
                 let low = memory.read(self.program_counter + 1);
                 let high = memory.read(self.program_counter + 2);
 
-                self.program_counter += 1;
+                self.program_counter += 3;
                 self.stack_pointer -= 2;
                 memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
                 memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));

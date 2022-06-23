@@ -349,7 +349,7 @@ fn test_load_reg_16() {
     );
 
     assert_eq!(cpu.d, 0xEE);
-    assert_eq!(cpu.c, 0x55);
+    assert_eq!(cpu.e, 0x55);
     assert_eq!(cpu.program_counter, 3);
 }
 
