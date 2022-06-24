@@ -1,5 +1,5 @@
-use crate::{cpu::Cpu, instructions::Instruction, memory::Memory};
-use sdl2::{event::Event, keyboard::Keycode, pixels::Color};
+use crate::{cpu::Cpu, instructions::Instruction, memory::Memory, tile_info::TileType};
+use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
 use std::{env, fs};
 
 mod cpu;
@@ -35,13 +35,13 @@ fn main() {
     memory.load_boot_rom(&bios_contents);
     memory.load_cartridge(&contents);
 
-    println!("0x{:0>2X?} - 0x{:0>2X?}", cartridge_type, rom_size);
+    // println!("0x{:0>2X?} - 0x{:0>2X?}", cartridge_type, rom_size);
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("GameBoy Emulator", 444, 400)
+        .window("GameBoy Emulator", 160 * 2, 144 * 2)
         .position_centered()
         .build()
         .unwrap();
@@ -50,14 +50,13 @@ fn main() {
     let pixel_width = width / 160;
     let pixel_height = height / 144;
 
-    let color0 = Color::RGB(0x08, 0x18, 0x20);
-    let color1 = Color::RGB(0x34, 0x68, 0x56);
-    let color2 = Color::RGB(0x88, 0xC0, 0x70);
-    let color3 = Color::RGB(0xE0, 0xF8, 0xD0);
+    let color0 = Color::RGB(0xE0, 0xF8, 0xD0);
+    let color1 = Color::RGB(0x88, 0xC0, 0x70);
+    let color2 = Color::RGB(0x34, 0x68, 0x56);
+    let color3 = Color::RGB(0x08, 0x18, 0x20);
 
     let mut canvas = window.into_canvas().build().unwrap();
-    // canvas.set_draw_color(Color::RGB(0, 255, 255));
-    canvas.set_draw_color(color3);
+    canvas.set_draw_color(Color::RGB(0, 255, 255));
     canvas.clear();
     canvas.present();
 
@@ -86,12 +85,27 @@ fn main() {
         for _ in 0..20 {
             let instruction = cpu.parse(&mut memory);
 
-            println!(
-                "${:0>4X?} - 0x{:0>2X?} - {:?}",
-                cpu.program_counter,
-                memory.read(cpu.program_counter),
-                instruction
-            );
+            // println!(
+            //     "${:0>4X?} - 0x{:0>2X?} - {:?}",
+            //     cpu.program_counter,
+            //     memory.read(cpu.program_counter),
+            //     instruction
+            // );
+            // println!(
+            //     "$b: 0x{:0>2X?} c: 0x{:0>2X?} d: 0x{:0>2X?} e: 0x{:0>2X?} h: 0x{:0>2X?} l: 0x{:0>2X?} a: 0x{:0>2X?} f: 0x{:0>2X?}" ,
+            //     cpu.b,
+            //     cpu.c,
+            //     cpu.d,
+            //     cpu.e,
+            //     cpu.h,
+            //     cpu.l,
+            //     cpu.a,
+            //     cpu.f,
+            // );
+
+            // println!("addr={:0>4x}, code={:0>2x}, a={:0>2x}, f={:0>2x}, b={:0>2x}, c={:0>2x}, d={:0>2x}, e={:0>2x}, h={:0>2x}, l={:0>2x} sp={:0>4x}",
+            // cpu.program_counter, memory.read(cpu.program_counter), cpu.a, cpu.f, cpu.b, cpu.c, cpu.d,cpu.e, cpu.h,cpu.l, cpu.stack_pointer);
+
             // println!("SP: {:0>4X?}", cpu.stack_pointer);
             // println!("HL: {:0>4X?}", cpu.hl());
 
@@ -100,6 +114,67 @@ fn main() {
             }
 
             cpu.execute(instruction, &mut memory);
+        }
+
+        if memory.frame_happened {
+            canvas.clear();
+            let tilemap = memory.read_tile_map();
+
+            let mut color0_rects = Vec::new();
+            let mut color1_rects = Vec::new();
+            let mut color2_rects = Vec::new();
+            let mut color3_rects = Vec::new();
+
+            // background is 18 tiles long and 20 tiles tall
+
+            for y in 0..20 {
+                for x in 0..18 {
+                    let tile = memory.vram_read_tile(TileType::Background, tilemap[((memory.scy as usize / 8) % 32) + y][x]);
+
+                    // println!("Tile: {:?}", tile);
+
+                    // if tilemap[y][x] == 1 {
+                    //     println!("Tile: {:?}", tile);
+                    // }
+
+                    let colors = tile.get_color_ids_from_tile();
+
+                    for row in 0..colors.len() {
+                        for col in 0..colors[0].len() {
+                            let rect = Rect::new(
+                                ((x * 8) + col) as i32 * pixel_width as i32,
+                                ((y * 8) + row) as i32 * pixel_height as i32,
+                                pixel_width,
+                                pixel_height,
+                            );
+
+                            if colors[row][col] == 0 {
+                                color0_rects.push(rect);
+                            } else if colors[row][col] == 1 {
+                                color1_rects.push(rect);
+                            } else if colors[row][col] == 2 {
+                                color2_rects.push(rect);
+                            } else {
+                                color3_rects.push(rect);
+                            }
+                        }
+                    }
+                }
+            }
+
+            canvas.set_draw_color(color0);
+            canvas.fill_rects(&color0_rects).unwrap();
+
+            canvas.set_draw_color(color1);
+            canvas.fill_rects(&color1_rects).unwrap();
+
+            canvas.set_draw_color(color2);
+            canvas.fill_rects(&color2_rects).unwrap();
+
+            canvas.set_draw_color(color3);
+            canvas.fill_rects(&color3_rects).unwrap();
+
+            memory.frame_happened = false;
         }
 
         // old_scancodes = pressed_scancode_set(&event_pump);

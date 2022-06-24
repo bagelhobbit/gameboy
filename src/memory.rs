@@ -1,7 +1,4 @@
-use crate::{
-    tile_info::{TileInfo, TileType},
-    util::{get_lower_byte, get_upper_byte},
-};
+use crate::tile_info::{TileInfo, TileType};
 
 #[derive(Debug, PartialEq, Eq)]
 enum CartridgeType {
@@ -50,8 +47,10 @@ pub struct Memory {
     cartridge_type: CartridgeType,
     use_boot_rom: bool,
     time: u16,
-    frame_happened: bool,
+    pub frame_happened: bool,
     ly: u8,
+    pub scy: u8,
+    pub scx: u8,
 }
 
 // I/O Ranges
@@ -82,6 +81,8 @@ impl Memory {
             time: 0,
             frame_happened: false,
             ly: 0,
+            scy: 0,
+            scx: 0,
         }
     }
 
@@ -160,7 +161,6 @@ impl Memory {
                 self.rom[address as usize]
             }
         } else if address <= 0x7FFF {
-            // if
             self.switchable_rom[0][address as usize]
         } else if address <= 0x9FFF {
             let mapped = address - 0x8000;
@@ -181,11 +181,14 @@ impl Memory {
             //prohibited
             todo!()
         } else if address <= 0xFF7F {
-            if address == 0xFF44 {
-                self.ly
-            } else {
-                let mapped = address - 0xFF00;
-                self.io_registers[mapped as usize]
+            match address {
+                0xFF42 => self.scy,
+                0xFF43 => self.scx,
+                0xFF44 => self.ly,
+                _ => {
+                    let mapped = address - 0xFF00;
+                    self.io_registers[mapped as usize]
+                }
             }
         } else if address <= 0xFFFE {
             let mapped = address - 0xFF80;
@@ -228,15 +231,18 @@ impl Memory {
             //prohibited
             todo!()
         } else if address <= 0xFF7F {
-            let mapped = address - 0xFF00;
             if self.use_boot_rom && address == 0xFF50 {
                 self.use_boot_rom = false;
                 println!("disable boot rom");
             }
-            if address == 0xFF44 {
-                self.ly = data;
-            } else {
-                self.io_registers[mapped as usize] = data;
+            match address {
+                0xFF42 => self.scy = data,
+                0xFF43 => self.scx = data,
+                0xFF44 => self.ly = data,
+                _ => {
+                    let mapped = address - 0xFF00;
+                    self.io_registers[mapped as usize] = data;
+                }
             }
         } else if address <= 0xFFFE {
             let mapped = address - 0xFF80;
@@ -267,7 +273,7 @@ impl Memory {
     pub fn vram_write_tile(&mut self, tile_info: TileInfo, index: u8) {
         //get LCDC bit 4 to toggle indexing modes (from IO registers)
         // TODO: better way to do this... (also is this even the right bit?)
-        let lcdc4 = if self.io_registers[0x40] & 0b0000_1000 == 0b1000 {
+        let lcdc4 = if self.io_registers[0x40] & 0b0001_0000 == 0b0001_0000 {
             true
         } else {
             false
@@ -297,8 +303,8 @@ impl Memory {
 
     pub fn vram_read_tile(&mut self, tile_type: TileType, index: u8) -> TileInfo {
         //get LCDC bit 4 to toggle indexing modes (from IO registers)
-        // TODO: better way to do this... (also is this even the right bit?)
-        let lcdc4 = if self.io_registers[0x40] & 0b0000_1000 == 0b1000 {
+        // TODO: better way to do this...
+        let lcdc4 = if self.io_registers[0x40] & 0b0001_0000 == 0b0001_0000 {
             true
         } else {
             false
@@ -332,6 +338,27 @@ impl Memory {
                 }
             }
         }
+    }
+
+    pub fn read_tile_map(&self) -> [[u8; 32]; 32] {
+        //get LCDC bit 6 to toggle tile map locations
+        // TODO: better way to do this...
+        let start_address = if self.io_registers[0x40] & 0b0100_0000 == 0b0100_0000 {
+            0x9C00 - 0x8000
+        } else {
+            0x9800 - 0x8000
+        };
+
+        let indices = self.vram[start_address..(start_address + 0x400)].to_vec();
+        let mut result = [[0; 32]; 32];
+
+        for row in 0..32 {
+            for col in 0..32 {
+                result[row][col] = indices[(row * 32) + col];
+            }
+        }
+
+        result
     }
 }
 
@@ -394,7 +421,7 @@ mod tests {
         let mut memory = Memory::new();
         let tile_info = get_window_tile_info();
 
-        memory.io_registers[0x40] = 0b0000_1000;
+        memory.io_registers[0x40] = 0b0001_0000;
 
         memory.vram_write_tile(get_window_tile_info(), 0);
         memory.vram_write_tile(get_window_tile_info(), 120);
@@ -440,5 +467,37 @@ mod tests {
             memory.vram[address_offset..(address_offset + 16)],
             tile_info.tile
         );
+    }
+
+    #[test]
+    fn test_vram_read_tile_backgound_lcdc_true() {
+        let mut memory = Memory::new();
+        let tile_info = get_bg_tile_info();
+
+        memory.io_registers[0x40] = 0b0001_0000;
+
+        memory.vram_write_tile(get_bg_tile_info(), 1);
+
+        assert_eq!(memory.vram[16..32], tile_info.tile);
+        assert_eq!(
+            memory.vram_read_tile(TileType::Background, 1).tile,
+            tile_info.tile
+        );
+    }
+
+    #[test]
+    fn test_read_tile_map() {
+        let mut memory = Memory::new();
+        let values = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            24, 25, 26, 27, 28, 29, 30, 31,
+        ];
+        memory.vram[0x1800..(0x1800 + 32)].copy_from_slice(&values);
+        memory.vram[(0x1C00 - 32)..0x1C00].copy_from_slice(&values);
+
+        let tile_map = memory.read_tile_map();
+
+        assert_eq!(tile_map[0], values);
+        assert_eq!(tile_map[31], values);
     }
 }
