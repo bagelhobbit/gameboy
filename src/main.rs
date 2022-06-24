@@ -1,6 +1,7 @@
 use crate::{cpu::Cpu, instructions::Instruction, memory::Memory, tile_info::TileType};
 use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
 use std::{env, fs};
+use util::get_as_bits;
 
 mod cpu;
 mod instructions;
@@ -125,17 +126,23 @@ fn main() {
             let mut color2_rects = Vec::new();
             let mut color3_rects = Vec::new();
 
-            // background is 18 tiles long and 20 tiles tall
+            let mut palette: u8;
+            let palette_bits = get_as_bits(memory.io_registers[0x47]);
 
+            let color_values = [
+                (palette_bits[6] << 1) + palette_bits[7],
+                (palette_bits[4] << 1) + palette_bits[5],
+                (palette_bits[2] << 1) + palette_bits[3],
+                (palette_bits[0] << 1) + palette_bits[1],
+            ];
+
+            // background is 18 tiles long and 20 tiles tall
             for y in 0..20 {
                 for x in 0..18 {
-                    let tile = memory.vram_read_tile(TileType::Background, tilemap[((memory.scy as usize / 8) % 32) + y][x]);
-
-                    // println!("Tile: {:?}", tile);
-
-                    // if tilemap[y][x] == 1 {
-                    //     println!("Tile: {:?}", tile);
-                    // }
+                    let tile = memory.vram_read_tile(
+                        TileType::Background,
+                        tilemap[((memory.scy as usize / 8) % 32) + y][x],
+                    );
 
                     let colors = tile.get_color_ids_from_tile();
 
@@ -148,11 +155,13 @@ fn main() {
                                 pixel_height,
                             );
 
-                            if colors[row][col] == 0 {
+                            palette = color_values[colors[row][col] as usize];
+
+                            if palette == 0 {
                                 color0_rects.push(rect);
-                            } else if colors[row][col] == 1 {
+                            } else if palette == 1 {
                                 color1_rects.push(rect);
-                            } else if colors[row][col] == 2 {
+                            } else if palette == 2 {
                                 color2_rects.push(rect);
                             } else {
                                 color3_rects.push(rect);
@@ -179,36 +188,6 @@ fn main() {
 
         // old_scancodes = pressed_scancode_set(&event_pump);
 
-        // let mut filled_rects = Vec::new();
-        // let mut blank_rects = Vec::new();
-
-        // for row in 0..(display_constants::HEIGHT as usize) {
-        //     for col in 0..(display_constants::WIDTH as usize) {
-        //         if memory.display[row][col] == 1 {
-        //             filled_rects.push(Rect::new(
-        //                 col as i32 * display_constants::SCALE as i32,
-        //                 row as i32 * display_constants::SCALE as i32,
-        //                 display_constants::SCALE,
-        //                 display_constants::SCALE,
-        //             ));
-        //         } else {
-        //             blank_rects.push(Rect::new(
-        //                 col as i32 * display_constants::SCALE as i32,
-        //                 row as i32 * display_constants::SCALE as i32,
-        //                 display_constants::SCALE,
-        //                 display_constants::SCALE,
-        //             ));
-        //         }
-        //     }
-        // }
-
-        // canvas.set_draw_color(Color::RGB(0, 0, 0));
-        // canvas.fill_rects(&filled_rects).unwrap();
-
-        // canvas.set_draw_color(Color::RGB(0, 255, 255));
-        // canvas.fill_rects(&blank_rects).unwrap();
-
         canvas.present();
-        // std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
