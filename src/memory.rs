@@ -42,7 +42,8 @@ pub struct Memory {
     pub hram: [u8; 0x7F],
     /// Interrupt Enable Register
     /// * Addressed at `0xFFFF`
-    pub interrupt_enable_register: bool,
+    pub enabled_interupts: u8,
+    pub interrupts_enabled: bool,
     boot_rom: [u8; 0x100],
     cartridge_type: CartridgeType,
     use_boot_rom: bool,
@@ -65,7 +66,7 @@ pub struct Memory {
 
 impl Memory {
     pub fn new() -> Memory {
-        Memory {
+        let mut mem = Memory {
             rom: [0; 0x4000],
             switchable_rom: vec![[0; 0x4000]],
             vram: [0; 0x2000],
@@ -74,7 +75,8 @@ impl Memory {
             sprite_attribute_table: [0; 0xA0],
             io_registers: [0; 0x80],
             hram: [0; 0x7F],
-            interrupt_enable_register: true,
+            enabled_interupts: 0,
+            interrupts_enabled: true,
             boot_rom: [0; 0x100],
             cartridge_type: CartridgeType::Rom,
             use_boot_rom: true,
@@ -83,7 +85,12 @@ impl Memory {
             ly: 0,
             scy: 0,
             scx: 0,
-        }
+        };
+
+        // set default controller inputs to none (0 - pressed)
+        mem.io_registers[0] = 0x0F;
+
+        mem
     }
 
     pub fn using_boot_rom(&self) -> bool {
@@ -173,14 +180,18 @@ impl Memory {
             let mapped = address - 0xC000;
             self.wram[mapped as usize]
         } else if address <= 0xFDFF {
-            //echo ram
-            todo!()
+            // Echo RAM
+            // Nintendo prohibits developers from using this memory range
+            let mapped = address - 0xE000;
+            self.wram[mapped as usize]
         } else if address <= 0xFE9F {
             let mapped = address - 0xFE00;
             self.sprite_attribute_table[mapped as usize]
         } else if address <= 0xFEFF {
-            //prohibited
-            todo!()
+            // Nintendo indicates that this area is prohibited
+            // This area returns $FF when OAM is blocked, and otherwise the behavior depends on the hardware revision.
+            // On DMG, MGB, SGB, and SGB2, reads during OAM block trigger OAM corruption. Reads otherwise return $00.
+            0
         } else if address <= 0xFF7F {
             match address {
                 0xFF42 => self.scy,
@@ -195,11 +206,7 @@ impl Memory {
             let mapped = address - 0xFF80;
             self.hram[mapped as usize]
         } else {
-            if self.interrupt_enable_register {
-                1
-            } else {
-                0
-            }
+            self.enabled_interupts
         }
     }
 
@@ -224,20 +231,22 @@ impl Memory {
             let mapped = address - 0xC000;
             self.wram[mapped as usize] = data;
         } else if address <= 0xFDFF {
-            //echo ram
-            todo!()
+            // Echo RAM
+            // Nintendo prohibits developers from using this memory range
+            let mapped = address - 0xE000;
+            self.wram[mapped as usize] = data;
         } else if address <= 0xFE9F {
             let mapped = address - 0xFE00;
             self.sprite_attribute_table[mapped as usize] = data;
         } else if address <= 0xFEFF {
-            //prohibited
-            todo!()
+            // Nintendo indicates that this area is prohibited
         } else if address <= 0xFF7F {
             if self.use_boot_rom && address == 0xFF50 {
                 self.use_boot_rom = false;
-                println!("disable boot rom");
             }
             match address {
+                // Only the top 4 bits of $FF00 are writeable, lower 4 are read only controller inputs
+                0xFF00 => self.io_registers[0] = (data & 0xF0) + (self.io_registers[0] & 0x0F) ,
                 0xFF42 => self.scy = data,
                 0xFF43 => self.scx = data,
                 0xFF44 => self.ly = data,
@@ -250,11 +259,7 @@ impl Memory {
             let mapped = address - 0xFF80;
             self.hram[mapped as usize] = data;
         } else {
-            if data == 0 {
-                self.interrupt_enable_register = false;
-            } else {
-                self.interrupt_enable_register = true;
-            }
+            self.enabled_interupts = data;
         }
     }
 

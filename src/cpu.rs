@@ -2018,11 +2018,11 @@ impl Cpu {
             Instruction::Halt => todo!(),
             Instruction::Stop => todo!(),
             Instruction::DisableInterrupts => {
-                memory.write(0xFFFF, 0);
+                memory.interrupts_enabled = false;
                 self.program_counter += 1;
             }
             Instruction::EnableInterrupts => {
-                memory.write(0xFFFF, 1);
+                memory.interrupts_enabled = true;
                 self.program_counter += 1;
             }
 
@@ -2088,10 +2088,7 @@ impl Cpu {
                 let high = memory.read(self.program_counter + 2);
 
                 self.program_counter += 3;
-                self.stack_pointer -= 2;
-                memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
-                memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
-                self.program_counter = combine_bytes(high, low);
+                self.call_address(memory, combine_bytes(high, low));
             }
             Instruction::CallConditional { flag } => {
                 let low = memory.read(self.program_counter + 1);
@@ -2107,10 +2104,7 @@ impl Cpu {
                 self.program_counter += 3;
 
                 if predicate {
-                    self.stack_pointer -= 2;
-                    memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
-                    memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
-                    self.program_counter = combine_bytes(high, low);
+                    self.call_address(memory, combine_bytes(high, low));
                 }
             }
             Instruction::Return => {
@@ -2139,7 +2133,7 @@ impl Cpu {
             Instruction::ReturnAndEnableInterrupts => {
                 let high = memory.read(self.stack_pointer);
                 let low = memory.read(self.stack_pointer + 1);
-                memory.write(0xFFFF, 1);
+                memory.interrupts_enabled = true;
                 self.program_counter = combine_bytes(high, low);
                 self.stack_pointer += 2;
             }
@@ -2147,13 +2141,54 @@ impl Cpu {
                 self.stack_pointer -= 2;
                 memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
                 memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
-                self.program_counter = ((location % 4) * 10) as u16;
+                self.program_counter = ((location % 4) * 0x10) as u16;
             }
             Instruction::Reset8 { location } => {
                 self.stack_pointer -= 2;
                 memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
                 memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
-                self.program_counter = (((location % 4) * 10) + 8) as u16;
+                self.program_counter = (((location % 4) * 0x10) + 0x8) as u16;
+            }
+        }
+
+        self.check_interrupts(instruction, memory);
+    }
+
+    /// If interrutps are enabled, check if any interrupts are requested and if so call the interrupt handler
+    fn check_interrupts(&mut self, instruction: Instruction, memory: &mut Memory) {
+        if instruction != Instruction::EnableInterrupts && memory.interrupts_enabled {
+            // mask the relevant flag bits just in case
+            let requested_interrupt_flags = memory.io_registers[0x0F] & 0x1F;
+            let enabled_interrupt_flags = memory.enabled_interupts & 0x1F;
+
+            //TODO: interrupts should take 5 M-cycles, but this should ony take 2
+
+            // we only want to process interrupts that are both request and enabled
+            if requested_interrupt_flags & enabled_interrupt_flags > 0 {
+                let interrupt_flags = get_as_bits(requested_interrupt_flags);
+                memory.interrupts_enabled = false;
+                // process interrupts in order of priority and clear the IF bit of the processed interrupt
+                if interrupt_flags[7] == 1 {
+                    // VBlank
+                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFE;
+                    self.call_address(memory, 0x40);
+                } else if interrupt_flags[6] == 1 {
+                    // LCD STAT
+                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFD;
+                    self.call_address(memory, 0x48);
+                } else if interrupt_flags[5] == 1 {
+                    // Timer
+                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFB;
+                    self.call_address(memory, 0x50);
+                } else if interrupt_flags[4] == 1 {
+                    // Serial
+                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xF7;
+                    self.call_address(memory, 0x58);
+                } else if interrupt_flags[3] == 1 {
+                    // Joypad
+                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xEF;
+                    self.call_address(memory, 0x60);
+                }
             }
         }
     }
@@ -2312,5 +2347,13 @@ impl Cpu {
         } else {
             value
         }
+    }
+
+    /// Push the PC onto the stack, then set the PC to the given address
+    fn call_address(&mut self, memory: &mut Memory, address: u16) {
+        self.stack_pointer -= 2;
+        memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
+        memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
+        self.program_counter = address;
     }
 }
