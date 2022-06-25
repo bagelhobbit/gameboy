@@ -108,7 +108,6 @@ fn main() {
             // cpu.program_counter, memory.read(cpu.program_counter), cpu.a, cpu.f, cpu.b, cpu.c, cpu.d,cpu.e, cpu.h,cpu.l, cpu.stack_pointer);
 
             // println!("SP: {:0>4X?}", cpu.stack_pointer);
-            // println!("HL: {:0>4X?}", cpu.hl());
 
             if instruction == Instruction::Invalid {
                 break;
@@ -141,7 +140,7 @@ fn main() {
                 for x in 0..18 {
                     let tile = memory.vram_read_tile(
                         TileType::Background,
-                        tilemap[((memory.scy as usize / 8) % 32) + y][x],
+                        tilemap[((memory.scy as usize / 8) + y) % 32][x],
                     );
 
                     let colors = tile.get_color_ids_from_tile();

@@ -161,7 +161,8 @@ impl Memory {
                 self.rom[address as usize]
             }
         } else if address <= 0x7FFF {
-            self.switchable_rom[0][address as usize]
+            let mapped = address - 0x4000;
+            self.switchable_rom[0][mapped as usize]
         } else if address <= 0x9FFF {
             let mapped = address - 0x8000;
             self.vram[mapped as usize]
@@ -211,7 +212,8 @@ impl Memory {
         if address <= 0x3FFF {
             self.rom[address as usize] = data;
         } else if address <= 0x7FFF {
-            self.switchable_rom[0][address as usize] = data;
+            let mapped = address - 0x4000;
+            self.switchable_rom[0][mapped as usize] = data;
         } else if address <= 0x9FFF {
             let mapped = address - 0x8000;
             self.vram[mapped as usize] = data;
