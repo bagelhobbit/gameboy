@@ -83,31 +83,16 @@ fn main() {
         //         .filter_map(|&s| Keycode::from_scancode(s))
         //         .collect();
 
-        for _ in 0..20 {
+        for _ in 0..60 {
             let instruction = cpu.parse(&mut memory);
 
-            // println!(
-            //     "${:0>4X?} - 0x{:0>2X?} - {:?}",
-            //     cpu.program_counter,
-            //     memory.read(cpu.program_counter),
-            //     instruction
-            // );
-            // println!(
-            //     "$b: 0x{:0>2X?} c: 0x{:0>2X?} d: 0x{:0>2X?} e: 0x{:0>2X?} h: 0x{:0>2X?} l: 0x{:0>2X?} a: 0x{:0>2X?} f: 0x{:0>2X?}" ,
-            //     cpu.b,
-            //     cpu.c,
-            //     cpu.d,
-            //     cpu.e,
-            //     cpu.h,
-            //     cpu.l,
-            //     cpu.a,
-            //     cpu.f,
-            // );
+            if !memory.using_boot_rom() {
+                // println!("addr={:0>4x}, code={:0>2x} {:?}, a={:0>2x}, f={:0>2x}, b={:0>2x}, c={:0>2x}, d={:0>2x}, e={:0>2x}, h={:0>2x}, l={:0>2x} sp={:0>4x}", 
+                // cpu.program_counter, memory.read(cpu.program_counter), instruction, cpu.a, cpu.f, cpu.b, cpu.c, cpu.d,cpu.e, cpu.h,cpu.l, cpu.stack_pointer);
+            }
 
             // println!("addr={:0>4x}, code={:0>2x}, a={:0>2x}, f={:0>2x}, b={:0>2x}, c={:0>2x}, d={:0>2x}, e={:0>2x}, h={:0>2x}, l={:0>2x} sp={:0>4x}",
             // cpu.program_counter, memory.read(cpu.program_counter), cpu.a, cpu.f, cpu.b, cpu.c, cpu.d,cpu.e, cpu.h,cpu.l, cpu.stack_pointer);
-
-            // println!("SP: {:0>4X?}", cpu.stack_pointer);
 
             if instruction == Instruction::Invalid {
                 break;
@@ -118,7 +103,7 @@ fn main() {
 
         if memory.frame_happened {
             canvas.clear();
-            let tilemap = memory.read_tile_map();
+            let tilemap = memory.read_bg_tile_map();
 
             let mut color0_rects = Vec::new();
             let mut color1_rects = Vec::new();
@@ -135,12 +120,12 @@ fn main() {
                 (palette_bits[0] << 1) + palette_bits[1],
             ];
 
-            // background is 18 tiles long and 20 tiles tall
-            for y in 0..20 {
-                for x in 0..18 {
+            // background is 18 tiles tall and 20 tiles wide
+            for y in 0..18 {
+                for x in 0..20 {
                     let tile = memory.vram_read_tile(
                         TileType::Background,
-                        tilemap[((memory.scy as usize / 8) + y) % 32][x],
+                        tilemap[((memory.scy as usize / 8) + y) % 32][((memory.scx as usize / 8) + x) % 32],
                     );
 
                     let colors = tile.get_color_ids_from_tile();

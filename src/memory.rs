@@ -347,10 +347,10 @@ impl Memory {
         }
     }
 
-    pub fn read_tile_map(&self) -> [[u8; 32]; 32] {
-        //get LCDC bit 6 to toggle tile map locations
+    pub fn read_bg_tile_map(&self) -> [[u8; 32]; 32] {
+        //get LCDC bit 3 to toggle BG tile map locations
         // TODO: better way to do this...
-        let start_address = if self.io_registers[0x40] & 0b0100_0000 == 0b0100_0000 {
+        let start_address = if self.io_registers[0x40] & 0b0000_1000 == 0b0000_1000 {
             0x9C00 - 0x8000
         } else {
             0x9800 - 0x8000
@@ -502,7 +502,7 @@ mod tests {
         memory.vram[0x1800..(0x1800 + 32)].copy_from_slice(&values);
         memory.vram[(0x1C00 - 32)..0x1C00].copy_from_slice(&values);
 
-        let tile_map = memory.read_tile_map();
+        let tile_map = memory.read_bg_tile_map();
 
         assert_eq!(tile_map[0], values);
         assert_eq!(tile_map[31], values);
