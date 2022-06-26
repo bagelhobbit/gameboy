@@ -994,7 +994,7 @@ impl Cpu {
                     }
                     DoubleRegister::AF => {
                         self.a = upper;
-                        self.f = lower;
+                        self.f = lower & 0xF0;
                     }
                     _ => panic!("Invalid Instruction"),
                 }
@@ -1399,7 +1399,7 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::DecimalAdjustA => {
-                let mut correction: u8 = 0;
+                let mut correction: u16 = 0;
 
                 if self.is_half_carry() || (!self.is_subtraction() && (self.a & 0x0F) > 9) {
                     correction += 0x06;
@@ -1411,9 +1411,11 @@ impl Cpu {
                 }
 
                 if self.is_subtraction() {
-                    self.a -= correction;
+                    let result = self.a as i16 - correction as i16;
+                    self.a = (result & 0x00FF) as u8;
                 } else {
-                    self.a += correction;
+                    let result = self.a as u16 + correction;
+                    self.a = (result & 0x00FF) as u8;
                 }
 
                 self.set_zero(self.a == 0);
@@ -2138,16 +2140,10 @@ impl Cpu {
                 self.stack_pointer += 2;
             }
             Instruction::Reset0 { location } => {
-                self.stack_pointer -= 2;
-                memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
-                memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
-                self.program_counter = ((location % 4) * 0x10) as u16;
+                self.call_address(memory, ((location % 4) * 0x10) as u16);
             }
             Instruction::Reset8 { location } => {
-                self.stack_pointer -= 2;
-                memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
-                memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
-                self.program_counter = (((location % 4) * 0x10) + 0x8) as u16;
+                self.call_address(memory, (((location % 4) * 0x10) + 0x8) as u16)
             }
         }
 
