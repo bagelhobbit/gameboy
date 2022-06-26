@@ -849,8 +849,8 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::LoadAAddress => {
-                let high = memory.read(self.program_counter + 1);
-                let low = memory.read(self.program_counter + 2);
+                let low = memory.read(self.program_counter + 1);
+                let high = memory.read(self.program_counter + 2);
                 let address = combine_bytes(high, low);
 
                 self.a = memory.read(address);
@@ -865,8 +865,8 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::LoadAddressA => {
-                let high = memory.read(self.program_counter + 1);
-                let low = memory.read(self.program_counter + 2);
+                let low = memory.read(self.program_counter + 1);
+                let high = memory.read(self.program_counter + 2);
                 let address = combine_bytes(high, low);
 
                 memory.write(address, self.a);
@@ -938,12 +938,12 @@ impl Cpu {
                 self.program_counter += 3;
             }
             Instruction::LoadAddressSP => {
-                let high = memory.read(self.program_counter + 1);
-                let low = memory.read(self.program_counter + 2);
+                let low = memory.read(self.program_counter + 1);
+                let high = memory.read(self.program_counter + 2);
                 let address = combine_bytes(high, low);
 
-                memory.write(address, get_upper_byte(self.stack_pointer));
-                memory.write(address + 1, get_lower_byte(self.stack_pointer));
+                memory.write(address, get_lower_byte(self.stack_pointer));
+                memory.write(address + 1, get_upper_byte(self.stack_pointer));
                 self.program_counter += 3;
             }
             Instruction::LoadSPHL => {
@@ -955,20 +955,20 @@ impl Cpu {
 
                 match register {
                     DoubleRegister::BC => {
-                        memory.write(self.stack_pointer, self.b);
-                        memory.write(self.stack_pointer + 1, self.c);
+                        memory.write(self.stack_pointer, self.c);
+                        memory.write(self.stack_pointer + 1, self.b);
                     }
                     DoubleRegister::DE => {
-                        memory.write(self.stack_pointer, self.d);
-                        memory.write(self.stack_pointer + 1, self.e);
+                        memory.write(self.stack_pointer, self.e);
+                        memory.write(self.stack_pointer + 1, self.d);
                     }
                     DoubleRegister::HL => {
-                        memory.write(self.stack_pointer, self.h);
-                        memory.write(self.stack_pointer + 1, self.l);
+                        memory.write(self.stack_pointer, self.l);
+                        memory.write(self.stack_pointer + 1, self.h);
                     }
                     DoubleRegister::AF => {
-                        memory.write(self.stack_pointer, self.a);
-                        memory.write(self.stack_pointer + 1, self.f);
+                        memory.write(self.stack_pointer, self.f);
+                        memory.write(self.stack_pointer + 1, self.a);
                     }
                     _ => panic!("Invalid Instruction"),
                 }
@@ -976,8 +976,8 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::PopReg { register } => {
-                let upper = memory.read(self.stack_pointer);
-                let lower = memory.read(self.stack_pointer + 1);
+                let lower = memory.read(self.stack_pointer);
+                let upper = memory.read(self.stack_pointer + 1);
 
                 match register {
                     DoubleRegister::BC => {
@@ -2036,8 +2036,8 @@ impl Cpu {
                 self.program_counter = self.hl();
             }
             Instruction::JumpConditional { flag } => {
-                let high = memory.read(self.program_counter + 1);
-                let low = memory.read(self.program_counter + 2);
+                let low = memory.read(self.program_counter + 1);
+                let high = memory.read(self.program_counter + 2);
 
                 let predicate = match flag {
                     ConditionalFlag::NZ => !self.is_zero(),
@@ -2108,8 +2108,8 @@ impl Cpu {
                 }
             }
             Instruction::Return => {
-                let high = memory.read(self.stack_pointer);
-                let low = memory.read(self.stack_pointer + 1);
+                let low = memory.read(self.stack_pointer);
+                let high = memory.read(self.stack_pointer + 1);
                 self.program_counter = combine_bytes(high, low);
                 self.stack_pointer += 2;
             }
@@ -2122,8 +2122,8 @@ impl Cpu {
                 };
 
                 if predicate {
-                    let high = memory.read(self.stack_pointer);
-                    let low = memory.read(self.stack_pointer + 1);
+                    let low = memory.read(self.stack_pointer);
+                    let high = memory.read(self.stack_pointer + 1);
                     self.program_counter = combine_bytes(high, low);
                     self.stack_pointer += 2;
                 } else {
@@ -2131,8 +2131,8 @@ impl Cpu {
                 }
             }
             Instruction::ReturnAndEnableInterrupts => {
-                let high = memory.read(self.stack_pointer);
-                let low = memory.read(self.stack_pointer + 1);
+                let low = memory.read(self.stack_pointer);
+                let high = memory.read(self.stack_pointer + 1);
                 memory.interrupts_enabled = true;
                 self.program_counter = combine_bytes(high, low);
                 self.stack_pointer += 2;
@@ -2352,8 +2352,8 @@ impl Cpu {
     /// Push the PC onto the stack, then set the PC to the given address
     fn call_address(&mut self, memory: &mut Memory, address: u16) {
         self.stack_pointer -= 2;
-        memory.write(self.stack_pointer, get_upper_byte(self.program_counter));
-        memory.write(self.stack_pointer + 1, get_lower_byte(self.program_counter));
+        memory.write(self.stack_pointer, get_lower_byte(self.program_counter));
+        memory.write(self.stack_pointer + 1, get_upper_byte(self.program_counter));
         self.program_counter = address;
     }
 }

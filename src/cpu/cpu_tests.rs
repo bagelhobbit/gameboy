@@ -147,8 +147,8 @@ fn test_load_a_address() {
     let mut memory = Memory::new();
     memory.write(0xFF50, 1);
 
-    memory.rom[1] = 0x11;
-    memory.rom[2] = 0x00;
+    memory.rom[1] = 0x00;
+    memory.rom[2] = 0x11;
     memory.rom[0x1100] = 0xE5;
 
     cpu.execute(Instruction::LoadAAddress, &mut memory);
@@ -194,8 +194,8 @@ fn test_load_address_a() {
     memory.write(0xFF50, 1);
 
     cpu.a = 0xE5;
-    memory.rom[1] = 0x11;
-    memory.rom[2] = 0x00;
+    memory.rom[1] = 0x00;
+    memory.rom[2] = 0x11;
 
     cpu.execute(Instruction::LoadAddressA, &mut memory);
 
@@ -360,13 +360,13 @@ fn test_load_address_sp() {
     memory.write(0xFF50, 1);
 
     cpu.stack_pointer = 0xABCD;
-    memory.rom[1] = 0x1F;
-    memory.rom[2] = 0x00;
+    memory.rom[1] = 0x00;
+    memory.rom[2] = 0x1F;
 
     cpu.execute(Instruction::LoadAddressSP, &mut memory);
 
-    assert_eq!(memory.read(0x1F00), 0xAB);
-    assert_eq!(memory.read(0x1F01), 0xCD);
+    assert_eq!(memory.read(0x1F00), 0xCD);
+    assert_eq!(memory.read(0x1F01), 0xAB);
     assert_eq!(cpu.program_counter, 3);
 }
 
@@ -402,8 +402,8 @@ fn test_push_rr() {
         &mut memory,
     );
 
-    assert_eq!(memory.read(0x1100), 0xE5);
-    assert_eq!(memory.read(0x1101), 0b1001_0000);
+    assert_eq!(memory.read(0x1101), 0xE5);
+    assert_eq!(memory.read(0x1100), 0b1001_0000);
     assert_eq!(cpu.stack_pointer, 0x1100);
     assert_eq!(cpu.program_counter, 1);
 }
@@ -414,8 +414,8 @@ fn test_pop_rr() {
     let mut memory = Memory::new();
 
     cpu.stack_pointer = 0x1100;
-    memory.rom[0x1100] = 0xE5;
-    memory.rom[0x1101] = 0x5E;
+    memory.rom[0x1100] = 0x5E;
+    memory.rom[0x1101] = 0xE5;
 
     cpu.execute(
         Instruction::PopReg {
@@ -1991,8 +1991,8 @@ fn test_jp_flags() {
     memory.write(0xFF50, 1);
 
     let flag = ConditionalFlag::NZ;
-    memory.rom[1] = 0x11;
-    memory.rom[2] = 0x00;
+    memory.rom[1] = 0x00;
+    memory.rom[2] = 0x11;
 
     memory.rom[0x1101] = 0x15;
     memory.rom[0x1102] = 0x14;
@@ -2056,7 +2056,6 @@ fn test_call() {
     cpu.execute(Instruction::Call, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0xFFFC);
-    assert_eq!(memory.read(cpu.stack_pointer), 0);
     assert_eq!(cpu.program_counter, 0x1100);
 }
 
@@ -2073,7 +2072,6 @@ fn test_call_conditional() {
     cpu.execute(Instruction::CallConditional { flag }, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0xFFFC);
-    assert_eq!(memory.read(cpu.stack_pointer), 0);
     assert_eq!(cpu.program_counter, 0x1100);
 
     cpu.set_carry(true);
@@ -2088,8 +2086,8 @@ fn test_ret() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    memory.write(0xFFFC, 0x11);
-    memory.write(0xFFFD, 0x00);
+    memory.write(0xFFFC, 0x00);
+    memory.write(0xFFFD, 0x11);
     cpu.stack_pointer -= 2;
     cpu.execute(Instruction::Return, &mut memory);
 
@@ -2103,8 +2101,8 @@ fn test_ret_conditional() {
     let mut memory = Memory::new();
     let flag = ConditionalFlag::Z;
 
-    memory.write(0xFFFA, 0x11);
-    memory.write(0xFFFB, 0x00);
+    memory.write(0xFFFA, 0x00);
+    memory.write(0xFFFB, 0x11);
     cpu.stack_pointer -= 4;
     cpu.set_zero(true);
     cpu.execute(Instruction::ReturnConditional { flag }, &mut memory);
@@ -2124,8 +2122,8 @@ fn test_reti() {
     let mut memory = Memory::new();
 
     memory.interrupts_enabled = false;
-    memory.write(0xFFFC, 0x11);
-    memory.write(0xFFFD, 0x00);
+    memory.write(0xFFFC, 0x00);
+    memory.write(0xFFFD, 0x11);
     cpu.stack_pointer -= 2;
     cpu.execute(Instruction::ReturnAndEnableInterrupts, &mut memory);
 
