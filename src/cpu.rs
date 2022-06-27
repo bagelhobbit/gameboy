@@ -1,4 +1,5 @@
 use crate::{
+    alu_result::AluResult,
     instructions::{ConditionalFlag, DoubleRegister, Instruction, Register},
     memory::Memory,
     util::*,
@@ -370,6 +371,9 @@ impl Cpu {
                 flag: ConditionalFlag::NC,
             },
             (0xD, 0x3) => Instruction::CallConditional {
+                flag: ConditionalFlag::NZ,
+            },
+            (0xD, 0x4) => Instruction::CallConditional {
                 flag: ConditionalFlag::NC,
             },
             (0xD, 0x6) => Instruction::SubtractA,
@@ -1016,17 +1020,17 @@ impl Cpu {
                     Register::A => value = self.a,
                 }
 
-                self.overflow_addition(value);
+                self.wrapped_addition(value);
                 self.program_counter += 1;
             }
             Instruction::AddA => {
                 let value = memory.read(self.program_counter + 1);
-                self.overflow_addition(value);
+                self.wrapped_addition(value);
                 self.program_counter += 2;
             }
             Instruction::AddAHL => {
                 let value = memory.read(self.hl());
-                self.overflow_addition(value);
+                self.wrapped_addition(value);
                 self.program_counter += 1;
             }
             Instruction::AddCarryAReg { register } => {
@@ -1041,20 +1045,18 @@ impl Cpu {
                     Register::A => value = self.a,
                 }
 
-                let carry = if self.is_carry() { 1 } else { 0 };
-                self.overflow_addition(value + carry);
+                self.wrapped_addition_carry(value, self.is_carry());
                 self.program_counter += 1;
             }
             Instruction::AddCarryA => {
                 let value = memory.read(self.program_counter + 1);
-                let carry = if self.is_carry() { 1 } else { 0 };
-                self.overflow_addition(value + carry);
+                self.wrapped_addition_carry(value, self.is_carry());
                 self.program_counter += 2;
             }
             Instruction::AddCarryAHL => {
                 let value = memory.read(self.hl());
                 let carry = if self.is_carry() { 1 } else { 0 };
-                self.overflow_addition(value + carry);
+                self.wrapped_addition(value + carry);
                 self.program_counter += 1;
             }
             Instruction::SubtractAReg { register } => {
@@ -1069,17 +1071,17 @@ impl Cpu {
                     Register::A => value = self.a,
                 }
 
-                self.a = self.overflow_subtraction(value);
+                self.a = self.wrapped_subtraction(value);
                 self.program_counter += 1;
             }
             Instruction::SubtractA => {
                 let value = memory.read(self.program_counter + 1);
-                self.a = self.overflow_subtraction(value);
+                self.a = self.wrapped_subtraction(value);
                 self.program_counter += 1;
             }
             Instruction::SubtractAHL => {
                 let value = memory.read(self.hl());
-                self.a = self.overflow_subtraction(value);
+                self.a = self.wrapped_subtraction(value);
                 self.program_counter += 1;
             }
             Instruction::SubtractARegCarry { register } => {
@@ -1094,20 +1096,17 @@ impl Cpu {
                     Register::A => value = self.a,
                 }
 
-                let carry = if self.is_carry() { 1 } else { 0 };
-                self.a = self.overflow_subtraction(value + carry);
+                self.a = self.wrapped_subtraction_carry(value, self.is_carry());
                 self.program_counter += 1;
             }
             Instruction::SubtractACarry => {
                 let value = memory.read(self.program_counter + 1);
-                let carry = if self.is_carry() { 1 } else { 0 };
-                self.a = self.overflow_subtraction(value + carry);
+                self.a = self.wrapped_subtraction_carry(value, self.is_carry());
                 self.program_counter += 2;
             }
             Instruction::SubtractAHLCarry => {
                 let value = memory.read(self.hl());
-                let carry = if self.is_carry() { 1 } else { 0 };
-                self.a = self.overflow_subtraction(value + carry);
+                self.a = self.wrapped_subtraction_carry(value, self.is_carry());
                 self.program_counter += 1;
             }
             Instruction::AndAReg { register } => {
@@ -1257,17 +1256,17 @@ impl Cpu {
                     Register::A => value = self.a,
                 }
 
-                _ = self.overflow_subtraction(value);
+                _ = self.wrapped_subtraction(value);
                 self.program_counter += 1;
             }
             Instruction::CompareA => {
                 let value = memory.read(self.program_counter + 1);
-                _ = self.overflow_subtraction(value);
+                _ = self.wrapped_subtraction(value);
                 self.program_counter += 2;
             }
             Instruction::CompareAHL => {
                 let value = memory.read(self.hl());
-                _ = self.overflow_subtraction(value);
+                _ = self.wrapped_subtraction(value);
                 self.program_counter += 1;
             }
             Instruction::IncrementReg { register } => {
@@ -1440,19 +1439,16 @@ impl Cpu {
                     _ => panic!("Invalid Instruction"),
                 }
 
-                let lower_result = self.l as u16 + get_lower_byte(value) as u16;
-                let lower_carry = if lower_result > 0x00FF { 1 } else { 0 };
+                let alu = AluResult::from_add(self.l, get_lower_byte(value));
+                self.l = alu.result;
 
-                self.l = get_lower_byte(lower_result);
-
-                let upper_value = get_upper_byte(value) as u16 + lower_carry;
-                let upper_result = self.h as u16 + upper_value;
+                let alu = AluResult::from_adc(self.h, get_upper_byte(value), alu.carry);
 
                 self.set_subtraction(false);
-                self.set_half_carry((self.h & 0x0F) + (upper_value & 0x000F) as u8 > 0x0F);
-                self.set_carry(upper_result > 0x00FF);
+                self.set_half_carry(alu.half_carry);
+                self.set_carry(alu.carry);
 
-                self.h = get_lower_byte(upper_result);
+                self.h = alu.result;
                 self.program_counter += 1;
             }
             Instruction::IncrementReg16 { register } => {
@@ -1524,63 +1520,33 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::AddSPOffset => {
-                let offset = memory.read(self.program_counter + 1) as i8;
+                let offset = memory.read(self.program_counter + 1);
 
                 self.set_zero(false);
                 self.set_subtraction(false);
 
-                let abs_offset = offset.abs() as u16;
+                let alu = AluResult::from_add(get_lower_byte(self.stack_pointer), offset);
 
-                if offset > 0 {
-                    let result = self.stack_pointer as u32 + offset as u32;
-                    self.set_half_carry(
-                        (self.stack_pointer & 0x0FFF) + (abs_offset & 0x0FFF) > 0x0FFF,
-                    );
-                    self.set_carry(result > 0xFFFF);
-                    self.stack_pointer = (result & 0x0000_FFFF) as u16;
-                } else if abs_offset > self.stack_pointer {
-                    self.set_half_carry((self.stack_pointer & 0x0FFF) < (abs_offset & 0x0FFF));
-                    self.set_carry(true);
-                    self.stack_pointer = u16::MAX - (abs_offset - self.stack_pointer);
-                } else {
-                    self.set_half_carry((self.stack_pointer & 0x0FFF) < (abs_offset & 0x0FFF));
-                    self.set_carry(false);
-                    self.stack_pointer -= abs_offset;
-                }
+                self.set_half_carry(alu.half_carry);
+                self.set_carry(alu.carry);
 
+                self.stack_pointer = self.stack_pointer.wrapping_add(offset as i8 as u16);
                 self.program_counter += 2;
             }
             Instruction::LoadHLSPOffset => {
-                let offset = memory.read(self.program_counter + 1) as i8;
+                let offset = memory.read(self.program_counter + 1);
 
                 self.set_zero(false);
                 self.set_subtraction(false);
 
-                let abs_offset = offset.abs() as u16;
+                let alu = AluResult::from_add(get_lower_byte(self.stack_pointer), offset);
 
-                if offset > 0 {
-                    let result = self.stack_pointer as u32 + offset as u32;
-                    self.set_half_carry(
-                        (self.stack_pointer & 0x0FFF) + (abs_offset & 0x0FFF) > 0x0FFF,
-                    );
-                    self.set_carry(result > 0xFFFF);
-                    let result_16 = (result & 0x0000_FFFF) as u16;
-                    self.h = get_upper_byte(result_16);
-                    self.l = get_lower_byte(result_16);
-                } else if abs_offset > self.stack_pointer {
-                    self.set_half_carry((self.stack_pointer & 0x0FFF) < (abs_offset & 0x0FFF));
-                    self.set_carry(true);
-                    let result = u16::MAX - (abs_offset - self.stack_pointer);
-                    self.h = get_upper_byte(result);
-                    self.l = get_lower_byte(result);
-                } else {
-                    self.set_half_carry((self.stack_pointer & 0x0FFF) < (abs_offset & 0x0FFF));
-                    self.set_carry(false);
-                    let result = self.stack_pointer - abs_offset;
-                    self.h = get_upper_byte(result);
-                    self.l = get_lower_byte(result);
-                }
+                self.set_half_carry(alu.half_carry);
+                self.set_carry(alu.carry);
 
+                let sp = self.stack_pointer.wrapping_add(offset as i8 as u16);
+                self.h = get_upper_byte(sp);
+                self.l = get_lower_byte(sp);
                 self.program_counter += 2;
             }
 
@@ -2190,31 +2156,49 @@ impl Cpu {
     }
 
     /// Adds `value` to the `A` register and sets the appropriate flags (z0hc)
-    fn overflow_addition(&mut self, value: u8) {
-        let mut result = self.a as u16;
+    fn wrapped_addition(&mut self, value: u8) {
+        let alu = AluResult::from_add(self.a, value);
 
-        result += value as u16;
-
-        self.set_zero(result & 0x00FF == 0);
+        self.a = alu.result;
+        self.set_zero(self.a == 0);
         self.set_subtraction(false);
-        self.set_half_carry((self.a & 0x0F) + (value & 0x0F) > 0x0F);
-        self.set_carry(result > u8::MAX as u16);
+        self.set_half_carry(alu.half_carry);
+        self.set_carry(alu.carry);
+    }
 
-        self.a = get_lower_byte(result);
+    /// Adds `value` to the `A` register and sets the appropriate flags (z0hc)
+    fn wrapped_addition_carry(&mut self, value: u8, carry: bool) {
+        let alu = AluResult::from_adc(self.a, value, carry);
+
+        self.a = alu.result;
+        self.set_zero(self.a == 0);
+        self.set_subtraction(false);
+        self.set_half_carry(alu.half_carry);
+        self.set_carry(alu.carry);
     }
 
     /// Returns the result of subtracting `value` from the `A` register and sets the appropriate flags (z1hc)
-    fn overflow_subtraction(&mut self, value: u8) -> u8 {
-        let mut result = self.a as i16;
+    fn wrapped_subtraction(&mut self, value: u8) -> u8 {
+        let alu = AluResult::from_sub(self.a, value);
 
-        result -= value as i16;
-
-        self.set_zero(self.a == value);
+        self.set_zero(alu.result == 0);
         self.set_subtraction(true);
-        self.set_half_carry((self.a & 0x0F) < (value & 0x0F));
-        self.set_carry(value > self.a);
+        self.set_half_carry(alu.half_carry);
+        self.set_carry(alu.carry);
 
-        (result & 0x00FF) as u8
+        alu.result
+    }
+
+    /// Returns the result of subtracting `value` from the `A` register and sets the appropriate flags (z1hc)
+    fn wrapped_subtraction_carry(&mut self, value: u8, carry: bool) -> u8 {
+        let alu = AluResult::from_sbc(self.a, value, carry);
+
+        self.set_zero(alu.result == 0);
+        self.set_subtraction(true);
+        self.set_half_carry(alu.half_carry);
+        self.set_carry(alu.carry);
+
+        alu.result
     }
 
     /// Returns the left rotated value and sets the carry flag

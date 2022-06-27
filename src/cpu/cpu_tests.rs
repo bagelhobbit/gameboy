@@ -433,132 +433,6 @@ fn test_pop_rr() {
 // 8-bit Arithmetic/Logic instruction tests
 
 #[test]
-fn test_overflow_addition() {
-    let mut cpu = Cpu::new();
-
-    cpu.a = 5;
-    cpu.overflow_addition(10);
-
-    assert_eq!(cpu.a, 15);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
-}
-
-#[test]
-fn test_overflow_addition_zero() {
-    let mut cpu = Cpu::new();
-
-    cpu.a = 0;
-    cpu.overflow_addition(0);
-
-    assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
-}
-
-#[test]
-fn test_overflow_addition_half_carry() {
-    let mut cpu = Cpu::new();
-
-    cpu.a = 0b0000_1111;
-    cpu.overflow_addition(1);
-
-    assert_eq!(cpu.a, 0b0001_0000);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), false);
-}
-
-#[test]
-fn test_overflow_addition_carry() {
-    let mut cpu = Cpu::new();
-
-    cpu.a = u8::MAX;
-    cpu.overflow_addition(10);
-
-    assert_eq!(cpu.a, 9);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), true);
-}
-
-#[test]
-fn test_overflow_addition_zero_carry() {
-    let mut cpu = Cpu::new();
-
-    cpu.a = u8::MAX;
-    cpu.overflow_addition(1);
-
-    assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), true);
-}
-
-#[test]
-fn test_overflow_subtraction() {
-    let mut cpu = Cpu::new();
-
-    cpu.a = 15;
-    let result = cpu.overflow_subtraction(10);
-
-    assert_eq!(result, 5);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), true);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
-}
-
-#[test]
-fn test_overflow_subtraction_zero() {
-    let mut cpu = Cpu::new();
-
-    cpu.a = 0;
-    let result = cpu.overflow_subtraction(0);
-
-    assert_eq!(result, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), true);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
-}
-
-#[test]
-fn test_overflow_subtraction_half_carry() {
-    let mut cpu = Cpu::new();
-
-    cpu.a = 0b0001_0000;
-    let result = cpu.overflow_subtraction(1);
-
-    assert_eq!(result, 0b0000_1111);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), true);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), false);
-}
-
-#[test]
-fn test_overflow_subtraction_carry() {
-    let mut cpu = Cpu::new();
-
-    cpu.a = 0;
-    let result = cpu.overflow_subtraction(10);
-
-    assert_eq!(result, 246);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), true);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), true);
-}
-
-#[test]
 fn test_and_a_reg() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
@@ -1291,8 +1165,8 @@ fn test_add_sp_offset_negative() {
     assert_eq!(cpu.stack_pointer, 0xFFFE - 10);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_carry(), true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1325,8 +1199,8 @@ fn test_load_hl_sp_offset_negative() {
     assert_eq!(cpu.hl(), 0xFFFE - 10);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_carry(), true);
     assert_eq!(cpu.program_counter, 2);
 }
 

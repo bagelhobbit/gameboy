@@ -22,7 +22,7 @@ fn main() {
     let filename = &args[1];
 
     let bios_contents =
-        fs::read("BIOS_Nintendo_Game_Boy_Boot_ROM_World.gb").expect("Error reading BIOS");
+        fs::read("boot.gb").expect("Error reading BIOS");
 
     let contents = fs::read(filename).expect("Error reading the given filename");
 
@@ -125,7 +125,8 @@ fn main() {
                 for x in 0..20 {
                     let tile = memory.vram_read_tile(
                         TileType::Background,
-                        tilemap[((memory.scy as usize / 8) + y) % 32][((memory.scx as usize / 8) + x) % 32],
+                        tilemap[((memory.scy as usize / 8) + y) % 32]
+                            [((memory.scx as usize / 8) + x) % 32],
                     );
 
                     let colors = tile.get_color_ids_from_tile();
