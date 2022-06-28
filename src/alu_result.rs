@@ -7,16 +7,7 @@ pub struct AluResult {
 
 impl AluResult {
     pub fn from_add(a: u8, b: u8) -> AluResult {
-        let result = a as u16 + b as u16;
-
-        let half_carry = (a & 0x0F) + (b & 0x0F) > 0x0F;
-        let carry = result > u8::MAX as u16;
-
-        AluResult {
-            result: result as u8,
-            half_carry,
-            carry,
-        }
+        AluResult::from_adc(a, b, false)
     }
 
     pub fn from_adc(a: u8, b: u8, carry: bool) -> AluResult {
@@ -34,29 +25,24 @@ impl AluResult {
     }
 
     pub fn from_sub(a: u8, b: u8) -> AluResult {
-        let result = a as i16 - b as i16;
+        AluResult::from_sbc(a, b, false)
+    }
 
-        let half_carry = (a & 0x0F) < (b & 0x0F);
-        let carry = b > a;
+    pub fn from_sbc(a: u8, b: u8, carry: bool) -> AluResult {
+        let a = a as i16;
+        let b = b as i16;
+        let carry = carry as i16;
+        let result = (a & 0xff) - (b & 0xff) - carry;
+
+        let lower_sbc = (a & 0xf) - (b & 0xf) - carry;
+
+        let half_carry = (lower_sbc & 0x1f) > 0xf;
+        let carry = (b + carry) > a;
 
         AluResult {
             result: result as u8,
             half_carry,
             carry,
-        }
-    }
-
-    pub fn from_sbc(a: u8, b: u8, carry: bool) -> AluResult {
-        let carry = carry as i16;
-        let result = a as i16 - b as i16 - carry;
-
-        let half_carry = (a & 0x0F) < (b & 0x0F + carry as u8);
-        let carry_flag = (b as i16 + carry as i16) > a as i16;
-
-        AluResult {
-            result: result as u8,
-            half_carry,
-            carry: carry_flag,
         }
     }
 }

@@ -1055,8 +1055,7 @@ impl Cpu {
             }
             Instruction::AddCarryAHL => {
                 let value = memory.read(self.hl());
-                let carry = if self.is_carry() { 1 } else { 0 };
-                self.wrapped_addition(value + carry);
+                self.wrapped_addition_carry(value, self.is_carry());
                 self.program_counter += 1;
             }
             Instruction::SubtractAReg { register } => {
@@ -1973,10 +1972,14 @@ impl Cpu {
 
             // CPU Control instructions
             Instruction::FlipCarryFlag => {
+                self.set_subtraction(false);
+                self.set_half_carry(false);
                 self.set_carry(!self.is_carry());
                 self.program_counter += 1;
             }
             Instruction::SetCarryFlag => {
+                self.set_subtraction(false);
+                self.set_half_carry(false);
                 self.set_carry(true);
                 self.program_counter += 1;
             }
