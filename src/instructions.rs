@@ -32,8 +32,8 @@ pub enum Instruction {
     // 8-bit load instructions
     /// LD R,R
     LoadReg {
-        load_from: u8,
-        load_into: Register,
+        dst: Register,
+        src: Register,
     },
     /// LD R,d8
     LoadReg8 {

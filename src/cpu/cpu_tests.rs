@@ -18,15 +18,15 @@ fn test_load_reg() {
 
     cpu.execute(
         Instruction::LoadReg {
-            load_from: 2,
-            load_into: Register::B,
+            dst: Register::B,
+            src: Register::D,
         },
         &mut memory,
     );
     cpu.execute(
         Instruction::LoadReg {
-            load_from: 8,
-            load_into: Register::L,
+            dst: Register::L,
+            src: Register::B,
         },
         &mut memory,
     );

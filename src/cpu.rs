@@ -172,15 +172,25 @@ impl Cpu {
                 register: Register::C,
             },
             (0x4, reg) => {
+                let registers = [
+                    Register::B,
+                    Register::C,
+                    Register::D,
+                    Register::E,
+                    Register::H,
+                    Register::L,
+                    Register::A, // Duplicate entry to pad LD R, (HL)
+                    Register::A,
+                ];
                 if reg <= 7 {
                     Instruction::LoadReg {
-                        load_from: reg,
-                        load_into: Register::B,
+                        dst: Register::B,
+                        src: registers[reg as usize],
                     }
                 } else {
                     Instruction::LoadReg {
-                        load_from: reg,
-                        load_into: Register::C,
+                        dst: Register::C,
+                        src: registers[reg as usize % 8],
                     }
                 }
             }
@@ -191,15 +201,25 @@ impl Cpu {
                 register: Register::E,
             },
             (0x5, reg) => {
+                let registers = [
+                    Register::B,
+                    Register::C,
+                    Register::D,
+                    Register::E,
+                    Register::H,
+                    Register::L,
+                    Register::A, // Duplicate entry to pad LD R, (HL)
+                    Register::A,
+                ];
                 if reg <= 7 {
                     Instruction::LoadReg {
-                        load_from: reg,
-                        load_into: Register::D,
+                        dst: Register::D,
+                        src: registers[reg as usize],
                     }
                 } else {
                     Instruction::LoadReg {
-                        load_from: reg,
-                        load_into: Register::E,
+                        dst: Register::E,
+                        src: registers[reg as usize % 8],
                     }
                 }
             }
@@ -210,15 +230,25 @@ impl Cpu {
                 register: Register::L,
             },
             (0x6, reg) => {
+                let registers = [
+                    Register::B,
+                    Register::C,
+                    Register::D,
+                    Register::E,
+                    Register::H,
+                    Register::L,
+                    Register::A, // Duplicate entry to pad LD R, (HL)
+                    Register::A,
+                ];
                 if reg <= 7 {
                     Instruction::LoadReg {
-                        load_from: reg,
-                        load_into: Register::H,
+                        dst: Register::H,
+                        src: registers[reg as usize],
                     }
                 } else {
                     Instruction::LoadReg {
-                        load_from: reg,
-                        load_into: Register::L,
+                        dst: Register::L,
+                        src: registers[reg as usize % 8],
                     }
                 }
             }
@@ -227,24 +257,24 @@ impl Cpu {
                 register: Register::A,
             },
             (0x7, reg) => {
+                let registers = [
+                    Register::B,
+                    Register::C,
+                    Register::D,
+                    Register::E,
+                    Register::H,
+                    Register::L,
+                    Register::A, // Duplicate entry to pad HALT (0x76)
+                    Register::A,
+                ];
                 if reg <= 7 {
-                    let registers = [
-                        Register::B,
-                        Register::C,
-                        Register::D,
-                        Register::E,
-                        Register::H,
-                        Register::L,
-                        Register::A, // Duplicate entry to pad HALT (0x76)
-                        Register::A,
-                    ];
                     Instruction::LoadHLReg {
                         register: registers[reg as usize],
                     }
                 } else {
                     Instruction::LoadReg {
-                        load_from: reg,
-                        load_into: Register::A,
+                        dst: Register::A,
+                        src: registers[reg as usize % 8],
                     }
                 }
             }
@@ -775,21 +805,25 @@ impl Cpu {
         match instruction {
             Instruction::Invalid => todo!(),
             // 8-bit load instructions
-            Instruction::LoadReg {
-                load_from: src,
-                load_into: dst,
-            } => {
-                let registers = [self.b, self.c, self.d, self.e, self.h, self.l, 0, self.a];
-                let index = (src % 8) as usize;
+            Instruction::LoadReg { dst, src } => {
+                let value = match src {
+                    Register::B => self.b,
+                    Register::C => self.c,
+                    Register::D => self.d,
+                    Register::E => self.e,
+                    Register::H => self.h,
+                    Register::L => self.l,
+                    Register::A => self.a,
+                };
 
                 match dst {
-                    Register::B => self.b = registers[index],
-                    Register::C => self.c = registers[index],
-                    Register::D => self.d = registers[index],
-                    Register::E => self.e = registers[index],
-                    Register::H => self.h = registers[index],
-                    Register::L => self.l = registers[index],
-                    Register::A => self.a = registers[index],
+                    Register::B => self.b = value,
+                    Register::C => self.c = value,
+                    Register::D => self.d = value,
+                    Register::E => self.e = value,
+                    Register::H => self.h = value,
+                    Register::L => self.l = value,
+                    Register::A => self.a = value,
                 }
 
                 self.program_counter += 1;
