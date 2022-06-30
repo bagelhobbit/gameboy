@@ -496,15 +496,12 @@ impl Cpu {
             }
             (location, 0x6) => {
                 // handle LD (HL),d8 elsewhere
-                if location < 3 {
-                    let registers = [Register::B, Register::D, Register::H];
-                    Instruction::LoadReg8 {
-                        register: registers[location as usize],
-                    }
-                } else {
-                    Instruction::Reset0 { location }
+                let registers = [Register::B, Register::D, Register::H];
+                Instruction::LoadReg8 {
+                    register: registers[location as usize],
                 }
             }
+            (location, 0x7) => Instruction::Reset0 { location },
             (reg, 0x9) => {
                 let registers = [
                     DoubleRegister::BC,
@@ -1110,7 +1107,7 @@ impl Cpu {
             Instruction::SubtractA => {
                 let value = memory.read(self.program_counter + 1);
                 self.a = self.wrapped_subtraction(value);
-                self.program_counter += 1;
+                self.program_counter += 2;
             }
             Instruction::SubtractAHL => {
                 let value = memory.read(self.hl());
@@ -1303,54 +1300,47 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::IncrementReg { register } => {
-                let (before, after) = match register {
+                let alu = match register {
                     Register::B => {
-                        let before = self.b;
-                        let result = self.b as u16 + 1;
-                        self.b = (result & 0x00FF) as u8;
-                        (before, self.b)
+                        let alu = AluResult::from_add(self.b, 1);
+                        self.b = alu.result;
+                        alu
                     }
                     Register::C => {
-                        let before = self.c;
-                        let result = self.c as u16 + 1;
-                        self.c = (result & 0x00FF) as u8;
-                        (before, self.c)
+                        let alu = AluResult::from_add(self.c, 1);
+                        self.c = alu.result;
+                        alu
                     }
                     Register::D => {
-                        let before = self.d;
-                        let result = self.d as u16 + 1;
-                        self.d = (result & 0x00FF) as u8;
-                        (before, self.d)
+                        let alu = AluResult::from_add(self.d, 1);
+                        self.d = alu.result;
+                        alu
                     }
                     Register::E => {
-                        let before = self.e;
-                        let result = self.e as u16 + 1;
-                        self.e = (result & 0x00FF) as u8;
-                        (before, self.e)
+                        let alu = AluResult::from_add(self.e, 1);
+                        self.e = alu.result;
+                        alu
                     }
                     Register::H => {
-                        let before = self.h;
-                        let result = self.h as u16 + 1;
-                        self.h = (result & 0x00FF) as u8;
-                        (before, self.h)
+                        let alu = AluResult::from_add(self.h, 1);
+                        self.h = alu.result;
+                        alu
                     }
                     Register::L => {
-                        let before = self.l;
-                        let result = self.l as u16 + 1;
-                        self.l = (result & 0x00FF) as u8;
-                        (before, self.l)
+                        let alu = AluResult::from_add(self.l, 1);
+                        self.l = alu.result;
+                        alu
                     }
                     Register::A => {
-                        let before = self.a;
-                        let result = self.a as u16 + 1;
-                        self.a = (result & 0x00FF) as u8;
-                        (before, self.a)
+                        let alu = AluResult::from_add(self.a, 1);
+                        self.a = alu.result;
+                        alu
                     }
                 };
 
-                self.set_zero(after == 0);
+                self.set_zero(alu.result == 0);
                 self.set_subtraction(false);
-                self.set_half_carry((before & 0x0F) + 1 > 0x0F);
+                self.set_half_carry(alu.half_carry);
 
                 self.program_counter += 1;
             }
@@ -1367,54 +1357,47 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::DecrementReg { register } => {
-                let (before, after) = match register {
+                let alu = match register {
                     Register::B => {
-                        let before = self.b;
-                        let result = self.b as i16 - 1;
-                        self.b = (result & 0x00FF) as u8;
-                        (before, self.b)
+                        let alu = AluResult::from_sub(self.b, 1);
+                        self.b = alu.result;
+                        alu
                     }
                     Register::C => {
-                        let before = self.c;
-                        let result = self.c as i16 - 1;
-                        self.c = (result & 0x00FF) as u8;
-                        (before, self.c)
+                        let alu = AluResult::from_sub(self.c, 1);
+                        self.c = alu.result;
+                        alu
                     }
                     Register::D => {
-                        let before = self.d;
-                        let result = self.d as i16 - 1;
-                        self.d = (result & 0x00FF) as u8;
-                        (before, self.d)
+                        let alu = AluResult::from_sub(self.d, 1);
+                        self.d = alu.result;
+                        alu
                     }
                     Register::E => {
-                        let before = self.e;
-                        let result = self.e as i16 - 1;
-                        self.e = (result & 0x00FF) as u8;
-                        (before, self.e)
+                        let alu = AluResult::from_sub(self.e, 1);
+                        self.e = alu.result;
+                        alu
                     }
                     Register::H => {
-                        let before = self.h;
-                        let result = self.h as i16 - 1;
-                        self.h = (result & 0x00FF) as u8;
-                        (before, self.h)
+                        let alu = AluResult::from_sub(self.h, 1);
+                        self.h = alu.result;
+                        alu
                     }
                     Register::L => {
-                        let before = self.l;
-                        let result = self.l as i16 - 1;
-                        self.l = (result & 0x00FF) as u8;
-                        (before, self.l)
+                        let alu = AluResult::from_sub(self.l, 1);
+                        self.l = alu.result;
+                        alu
                     }
                     Register::A => {
-                        let before = self.a;
-                        let result = self.a as i16 - 1;
-                        self.a = (result & 0x00FF) as u8;
-                        (before, self.a)
+                        let alu = AluResult::from_sub(self.a, 1);
+                        self.a = alu.result;
+                        alu
                     }
                 };
 
-                self.set_zero(after == 0);
+                self.set_zero(alu.result == 0);
                 self.set_subtraction(true);
-                self.set_half_carry((before & 0x0F) < 1);
+                self.set_half_carry(alu.half_carry);
 
                 self.program_counter += 1;
             }

@@ -3,6 +3,7 @@ use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
 use std::{env, fs};
 use util::get_as_bits;
 
+mod alu_result;
 mod cpu;
 mod instructions;
 mod io_registers;
@@ -95,7 +96,7 @@ fn main() {
             // cpu.program_counter, memory.read(cpu.program_counter), cpu.a, cpu.f, cpu.b, cpu.c, cpu.d,cpu.e, cpu.h,cpu.l, cpu.stack_pointer);
 
             if instruction == Instruction::Invalid {
-                break;
+                panic!("Invalid Instruction");
             }
 
             cpu.execute(instruction, &mut memory);

@@ -318,17 +318,17 @@ pub enum Instruction {
     Call,
     /// CALL f, a16
     CallConditional {
-        flag: ConditionalFlag
+        flag: ConditionalFlag,
     },
     /// 0xC9 - RET
     Return,
     /// RET f
     ReturnConditional {
-        flag: ConditionalFlag
+        flag: ConditionalFlag,
     },
     /// 0xD9 - RETI
     ReturnAndEnableInterrupts,
-    /// 0x{C-F}6 - RST x0H
+    /// 0x{C-F}7 - RST x0H
     Reset0 {
         location: u8,
     },
