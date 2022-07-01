@@ -2015,7 +2015,7 @@ fn test_rst_0() {
     cpu.execute(Instruction::Reset0 { location: 0xE }, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0xFFFC);
-    assert_eq!(memory.read(cpu.stack_pointer), 0);
+    assert_eq!(memory.read(cpu.stack_pointer), 1);
     assert_eq!(cpu.program_counter, 0x20);
 }
 
@@ -2028,6 +2028,6 @@ fn test_rst_8() {
     cpu.execute(Instruction::Reset8 { location: 0xD }, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0xFFFC);
-    assert_eq!(memory.read(cpu.stack_pointer), 0);
+    assert_eq!(memory.read(cpu.stack_pointer), 1);
     assert_eq!(cpu.program_counter, 0x18);
 }

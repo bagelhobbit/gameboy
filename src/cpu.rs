@@ -2126,9 +2126,11 @@ impl Cpu {
                 self.stack_pointer += 2;
             }
             Instruction::Reset0 { location } => {
+                self.program_counter += 1;
                 self.call_address(memory, ((location % 4) * 0x10) as u16);
             }
             Instruction::Reset8 { location } => {
+                self.program_counter += 1;
                 self.call_address(memory, (((location % 4) * 0x10) + 0x8) as u16)
             }
         }
