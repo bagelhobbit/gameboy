@@ -8,6 +8,8 @@ enum CartridgeType {
 
 #[derive(Debug)]
 pub struct Memory {
+    boot_rom: [u8; 0x100],
+    use_boot_rom: bool,
     /// 16 KiB ROM Bank 00
     /// * From cartridge, usually a fixed bank
     /// * Addressed from `0x0000` to `0x3FFF`
@@ -44,9 +46,7 @@ pub struct Memory {
     /// * Addressed at `0xFFFF`
     pub enabled_interupts: u8,
     pub interrupts_enabled: bool,
-    boot_rom: [u8; 0x100],
     cartridge_type: CartridgeType,
-    use_boot_rom: bool,
     time: u16,
     pub frame_happened: bool,
     ly: u8,
@@ -54,19 +54,11 @@ pub struct Memory {
     pub scx: u8,
 }
 
-// I/O Ranges
-// start    stop    Purpose
-// $FF00			Joypad input
-// $FF01	$FF02	Serial transfer
-// $FF04	$FF07	Timer and divider
-// $FF10	$FF26	Sound
-// $FF30	$FF3F	Wave pattern
-// $FF40	$FF4B	LCD Control, Status, Position, Scrolling, and Palettes
-// $FF50		    Set to non-zero to disable boot ROM
-
 impl Memory {
     pub fn new() -> Memory {
         let mut mem = Memory {
+            boot_rom: [0; 0x100],
+            use_boot_rom: true,
             rom: [0; 0x4000],
             switchable_rom: vec![[0; 0x4000]],
             vram: [0; 0x2000],
@@ -77,9 +69,7 @@ impl Memory {
             hram: [0; 0x7F],
             enabled_interupts: 0,
             interrupts_enabled: true,
-            boot_rom: [0; 0x100],
             cartridge_type: CartridgeType::Rom,
-            use_boot_rom: true,
             time: 0,
             frame_happened: false,
             ly: 0,
@@ -137,7 +127,7 @@ impl Memory {
         }
     }
 
-    pub fn load_boot_rom(&mut self, contents: &Vec<u8>) {
+    pub fn load_boot_rom(&mut self, contents: &[u8]) {
         self.boot_rom[..].clone_from_slice(contents);
     }
 
@@ -241,15 +231,17 @@ impl Memory {
         } else if address <= 0xFEFF {
             // Nintendo indicates that this area is prohibited
         } else if address <= 0xFF7F {
-            if self.use_boot_rom && address == 0xFF50 {
-                self.use_boot_rom = false;
-            }
             match address {
                 // Only the top 4 bits of $FF00 are writeable, lower 4 are read only controller inputs
-                0xFF00 => self.io_registers[0] = (data & 0xF0) + (self.io_registers[0] & 0x0F) ,
+                0xFF00 => self.io_registers[0] = (data & 0xF0) + (self.io_registers[0] & 0x0F),
                 0xFF42 => self.scy = data,
                 0xFF43 => self.scx = data,
                 0xFF44 => self.ly = data,
+                0xFF50 => {
+                    if self.use_boot_rom {
+                        self.use_boot_rom = false;
+                    }
+                }
                 _ => {
                     let mapped = address - 0xFF00;
                     self.io_registers[mapped as usize] = data;
@@ -280,11 +272,7 @@ impl Memory {
     pub fn vram_read_tile(&mut self, tile_type: TileType, index: u8) -> TileInfo {
         //get LCDC bit 4 to toggle indexing modes (from IO registers)
         // TODO: better way to do this...
-        let lcdc4 = if self.io_registers[0x40] & 0b0001_0000 == 0b0001_0000 {
-            true
-        } else {
-            false
-        };
+        let lcdc4 = self.io_registers[0x40] & 0b0001_0000 == 0b0001_0000;
 
         match tile_type {
             TileType::Obj => {
@@ -299,18 +287,16 @@ impl Memory {
                     let mut tile = [0; 16];
                     tile.copy_from_slice(&self.vram[address..(address + 16)]);
                     TileInfo { tile, tile_type }
+                } else if index >= 128 {
+                    let address = 0x0800 + ((index as usize - 128) * 16);
+                    let mut tile = [0; 16];
+                    tile.copy_from_slice(&self.vram[address..(address + 16)]);
+                    TileInfo { tile, tile_type }
                 } else {
-                    if index >= 128 {
-                        let address = 0x0800 + ((index as usize - 128) * 16);
-                        let mut tile = [0; 16];
-                        tile.copy_from_slice(&self.vram[address..(address + 16)]);
-                        TileInfo { tile, tile_type }
-                    } else {
-                        let address = 0x1000 + (index as usize * 16);
-                        let mut tile = [0; 16];
-                        tile.copy_from_slice(&self.vram[address..(address + 16)]);
-                        TileInfo { tile, tile_type }
-                    }
+                    let address = 0x1000 + (index as usize * 16);
+                    let mut tile = [0; 16];
+                    tile.copy_from_slice(&self.vram[address..(address + 16)]);
+                    TileInfo { tile, tile_type }
                 }
             }
         }

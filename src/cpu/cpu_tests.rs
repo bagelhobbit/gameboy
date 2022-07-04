@@ -225,11 +225,11 @@ fn test_load_offset_a() {
     memory.write(0xFF50, 1);
 
     cpu.a = 0xE5;
-    memory.rom[1] = 0x04;
+    memory.rom[1] = 0x03;
 
     cpu.execute(Instruction::LoadOffsetA, &mut memory);
 
-    assert_eq!(memory.io_registers[4], 0xE5);
+    assert_eq!(memory.io_registers[3], 0xE5);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -238,8 +238,8 @@ fn test_load_a_offset_c() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.c = 0x04;
-    memory.io_registers[0x04] = 0xE5;
+    cpu.c = 0x03;
+    memory.io_registers[0x03] = 0xE5;
 
     cpu.execute(Instruction::LoadAOffsetC, &mut memory);
 
@@ -253,11 +253,11 @@ fn test_load_offset_c_a() {
     let mut memory = Memory::new();
 
     cpu.a = 0xE5;
-    cpu.c = 0x04;
+    cpu.c = 0x03;
 
     cpu.execute(Instruction::LoadOffsetCA, &mut memory);
 
-    assert_eq!(memory.io_registers[4], 0xE5);
+    assert_eq!(memory.io_registers[3], 0xE5);
     assert_eq!(cpu.program_counter, 1);
 }
 

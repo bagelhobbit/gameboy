@@ -1,6 +1,7 @@
 use std::fmt;
 use crate::util::get_as_bits;
 
+#[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum TileType {
     Background,
@@ -38,17 +39,14 @@ impl fmt::Debug for TileInfo {
 impl TileInfo {
     pub fn get_color_ids_from_tile(&self) -> [[u8; 8]; 8] {
         let mut result = [[0; 8]; 8];
-        let mut index = 0;
 
-        for row in (0..self.tile.len()).step_by(2) {
+        for (index, row) in (0..self.tile.len()).step_by(2).enumerate() {
             let lsb = get_as_bits(self.tile[row]);
             let msb = get_as_bits(self.tile[row + 1]);
 
             for bit in 0..lsb.len() {
                 result[index][bit] = (msb[bit] << 1) + lsb[bit];
             }
-
-            index += 1;
         }
 
         result

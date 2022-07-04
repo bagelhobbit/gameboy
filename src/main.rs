@@ -10,7 +10,6 @@ mod io_registers;
 mod memory;
 mod tile_info;
 mod util;
-mod vram;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

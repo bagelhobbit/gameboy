@@ -79,9 +79,9 @@ impl Cpu {
 
     fn set_zero(&mut self, value: bool) {
         if value {
-            self.f = self.f | 0b1000_0000;
+            self.f |= 0b1000_0000;
         } else {
-            self.f = self.f & 0b0111_1111;
+            self.f &= 0b0111_1111;
         }
     }
 
@@ -91,9 +91,9 @@ impl Cpu {
 
     fn set_subtraction(&mut self, value: bool) {
         if value {
-            self.f = self.f | 0b0100_0000;
+            self.f |= 0b0100_0000;
         } else {
-            self.f = self.f & 0b1011_1111;
+            self.f &= 0b1011_1111;
         }
     }
 
@@ -103,9 +103,9 @@ impl Cpu {
 
     fn set_half_carry(&mut self, value: bool) {
         if value {
-            self.f = self.f | 0b0010_0000;
+            self.f |= 0b0010_0000;
         } else {
-            self.f = self.f & 0b1101_1111;
+            self.f &= 0b1101_1111;
         }
     }
 
@@ -115,9 +115,9 @@ impl Cpu {
 
     fn set_carry(&mut self, value: bool) {
         if value {
-            self.f = self.f | 0b0001_0000;
+            self.f |= 0b0001_0000;
         } else {
-            self.f = self.f & 0b1110_1111;
+            self.f &= 0b1110_1111;
         }
     }
 
@@ -1040,16 +1040,15 @@ impl Cpu {
 
             // 8-bit Arithmetic/Logic instructions
             Instruction::AddAReg { register } => {
-                let value: u8;
-                match register {
-                    Register::B => value = self.b,
-                    Register::C => value = self.c,
-                    Register::D => value = self.d,
-                    Register::E => value = self.e,
-                    Register::H => value = self.h,
-                    Register::L => value = self.l,
-                    Register::A => value = self.a,
-                }
+                let value = match register {
+                    Register::B => self.b,
+                    Register::C => self.c,
+                    Register::D => self.d,
+                    Register::E => self.e,
+                    Register::H => self.h,
+                    Register::L => self.l,
+                    Register::A => self.a,
+                };
 
                 self.wrapped_addition(value);
                 self.program_counter += 1;
@@ -1065,16 +1064,15 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::AddCarryAReg { register } => {
-                let value: u8;
-                match register {
-                    Register::B => value = self.b,
-                    Register::C => value = self.c,
-                    Register::D => value = self.d,
-                    Register::E => value = self.e,
-                    Register::H => value = self.h,
-                    Register::L => value = self.l,
-                    Register::A => value = self.a,
-                }
+                let value = match register {
+                    Register::B => self.b,
+                    Register::C => self.c,
+                    Register::D => self.d,
+                    Register::E => self.e,
+                    Register::H => self.h,
+                    Register::L => self.l,
+                    Register::A => self.a,
+                };
 
                 self.wrapped_addition_carry(value, self.is_carry());
                 self.program_counter += 1;
@@ -1090,16 +1088,15 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::SubtractAReg { register } => {
-                let value: u8;
-                match register {
-                    Register::B => value = self.b,
-                    Register::C => value = self.c,
-                    Register::D => value = self.d,
-                    Register::E => value = self.e,
-                    Register::H => value = self.h,
-                    Register::L => value = self.l,
-                    Register::A => value = self.a,
-                }
+                let value = match register {
+                    Register::B => self.b,
+                    Register::C => self.c,
+                    Register::D => self.d,
+                    Register::E => self.e,
+                    Register::H => self.h,
+                    Register::L => self.l,
+                    Register::A => self.a,
+                };
 
                 self.a = self.wrapped_subtraction(value);
                 self.program_counter += 1;
@@ -1115,16 +1112,15 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::SubtractARegCarry { register } => {
-                let value: u8;
-                match register {
-                    Register::B => value = self.b,
-                    Register::C => value = self.c,
-                    Register::D => value = self.d,
-                    Register::E => value = self.e,
-                    Register::H => value = self.h,
-                    Register::L => value = self.l,
-                    Register::A => value = self.a,
-                }
+                let value = match register {
+                    Register::B => self.b,
+                    Register::C => self.c,
+                    Register::D => self.d,
+                    Register::E => self.e,
+                    Register::H => self.h,
+                    Register::L => self.l,
+                    Register::A => self.a,
+                };
 
                 self.a = self.wrapped_subtraction_carry(value, self.is_carry());
                 self.program_counter += 1;
@@ -1140,18 +1136,17 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::AndAReg { register } => {
-                let value: u8;
-                match register {
-                    Register::B => value = self.b,
-                    Register::C => value = self.c,
-                    Register::D => value = self.d,
-                    Register::E => value = self.e,
-                    Register::H => value = self.h,
-                    Register::L => value = self.l,
-                    Register::A => value = self.a,
-                }
+                let value = match register {
+                    Register::B => self.b,
+                    Register::C => self.c,
+                    Register::D => self.d,
+                    Register::E => self.e,
+                    Register::H => self.h,
+                    Register::L => self.l,
+                    Register::A => self.a,
+                };
 
-                self.a = self.a & value;
+                self.a &= value;
 
                 self.set_zero(self.a == 0);
                 self.set_subtraction(false);
@@ -1163,7 +1158,7 @@ impl Cpu {
             Instruction::AndA => {
                 let value = memory.read(self.program_counter + 1);
 
-                self.a = self.a & value;
+                self.a &= value;
 
                 self.set_zero(self.a == 0);
                 self.set_subtraction(false);
@@ -1175,7 +1170,7 @@ impl Cpu {
             Instruction::AndAHL => {
                 let value = memory.read(self.hl());
 
-                self.a = self.a & value;
+                self.a &= value;
 
                 self.set_zero(self.a == 0);
                 self.set_subtraction(false);
@@ -1185,18 +1180,17 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::XorAReg { register } => {
-                let value: u8;
-                match register {
-                    Register::B => value = self.b,
-                    Register::C => value = self.c,
-                    Register::D => value = self.d,
-                    Register::E => value = self.e,
-                    Register::H => value = self.h,
-                    Register::L => value = self.l,
-                    Register::A => value = self.a,
-                }
+                let value = match register {
+                    Register::B => self.b,
+                    Register::C => self.c,
+                    Register::D => self.d,
+                    Register::E => self.e,
+                    Register::H => self.h,
+                    Register::L => self.l,
+                    Register::A => self.a,
+                };
 
-                self.a = self.a ^ value;
+                self.a ^= value;
 
                 self.set_zero(self.a == 0);
                 self.set_subtraction(false);
@@ -1208,7 +1202,7 @@ impl Cpu {
             Instruction::XorA => {
                 let value = memory.read(self.program_counter + 1);
 
-                self.a = self.a ^ value;
+                self.a ^= value;
 
                 self.set_zero(self.a == 0);
                 self.set_subtraction(false);
@@ -1220,7 +1214,7 @@ impl Cpu {
             Instruction::XorAHL => {
                 let value = memory.read(self.hl());
 
-                self.a = self.a ^ value;
+                self.a ^= value;
 
                 self.set_zero(self.a == 0);
                 self.set_subtraction(false);
@@ -1230,18 +1224,17 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::OrAReg { register } => {
-                let value: u8;
-                match register {
-                    Register::B => value = self.b,
-                    Register::C => value = self.c,
-                    Register::D => value = self.d,
-                    Register::E => value = self.e,
-                    Register::H => value = self.h,
-                    Register::L => value = self.l,
-                    Register::A => value = self.a,
-                }
+                let value = match register {
+                    Register::B => self.b,
+                    Register::C => self.c,
+                    Register::D => self.d,
+                    Register::E => self.e,
+                    Register::H => self.h,
+                    Register::L => self.l,
+                    Register::A => self.a,
+                };
 
-                self.a = self.a | value;
+                self.a |= value;
 
                 self.set_zero(self.a == 0);
                 self.set_subtraction(false);
@@ -1253,7 +1246,7 @@ impl Cpu {
             Instruction::OrA => {
                 let value = memory.read(self.program_counter + 1);
 
-                self.a = self.a | value;
+                self.a |= value;
 
                 self.set_zero(self.a == 0);
                 self.set_subtraction(false);
@@ -1265,7 +1258,7 @@ impl Cpu {
             Instruction::OrAHL => {
                 let value = memory.read(self.hl());
 
-                self.a = self.a | value;
+                self.a |= value;
 
                 self.set_zero(self.a == 0);
                 self.set_subtraction(false);
@@ -1275,16 +1268,15 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::CompareAReg { register } => {
-                let value: u8;
-                match register {
-                    Register::B => value = self.b,
-                    Register::C => value = self.c,
-                    Register::D => value = self.d,
-                    Register::E => value = self.e,
-                    Register::H => value = self.h,
-                    Register::L => value = self.l,
-                    Register::A => value = self.a,
-                }
+                let value = match register {
+                    Register::B => self.b,
+                    Register::C => self.c,
+                    Register::D => self.d,
+                    Register::E => self.e,
+                    Register::H => self.h,
+                    Register::L => self.l,
+                    Register::A => self.a,
+                };
 
                 _ = self.wrapped_subtraction(value);
                 self.program_counter += 1;
@@ -1446,14 +1438,13 @@ impl Cpu {
 
             // 16-bit Arithmetic/Logic instructions
             Instruction::AddHLReg { register } => {
-                let value: u16;
-                match register {
-                    DoubleRegister::BC => value = self.bc(),
-                    DoubleRegister::DE => value = self.de(),
-                    DoubleRegister::HL => value = self.hl(),
-                    DoubleRegister::SP => value = self.stack_pointer,
+                let value = match register {
+                    DoubleRegister::BC => self.bc(),
+                    DoubleRegister::DE => self.de(),
+                    DoubleRegister::HL => self.hl(),
+                    DoubleRegister::SP => self.stack_pointer,
                     _ => panic!("Invalid Instruction"),
-                }
+                };
 
                 let alu = AluResult::from_add(self.l, get_lower_byte(value));
                 self.l = alu.result;
@@ -2048,7 +2039,7 @@ impl Cpu {
                 if offset > 0 {
                     self.program_counter += offset as u16;
                 } else {
-                    self.program_counter -= offset.abs() as u16;
+                    self.program_counter -= offset.unsigned_abs() as u16;
                 }
             }
             Instruction::JumpRelativeConditional { flag } => {
@@ -2067,7 +2058,7 @@ impl Cpu {
                     if offset > 0 {
                         self.program_counter += offset as u16;
                     } else {
-                        self.program_counter -= offset.abs() as u16;
+                        self.program_counter -= offset.unsigned_abs() as u16;
                     }
                 }
             }
