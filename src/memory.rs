@@ -49,6 +49,11 @@ pub struct Memory {
     cartridge_type: CartridgeType,
     time: u16,
     pub frame_happened: bool,
+    divider_register: u32,
+    timer_counter: u32,
+    timer_modulo: u8,
+    timer_enable: bool,
+    timer_clock: u16,
     ly: u8,
     pub scy: u8,
     pub scx: u8,
@@ -72,6 +77,11 @@ impl Memory {
             cartridge_type: CartridgeType::Rom,
             time: 0,
             frame_happened: false,
+            divider_register: 0,
+            timer_counter: 0,
+            timer_modulo: 0,
+            timer_enable: false,
+            timer_clock: 1024,
             ly: 0,
             scy: 0,
             scx: 0,
@@ -184,6 +194,17 @@ impl Memory {
             0
         } else if address <= 0xFF7F {
             match address {
+                0xFF00 => self.io_registers[0],
+                0xFF04 => {
+                    // GB freq  4.194304 MHz
+                    // DIV freq 16384 Hz
+                    // GB freq(Hz) => 4194304 Hz
+                    // 4194304 / 16384 = 256
+                    (self.divider_register / 256) as u8
+                }
+                0xFF05 => (self.timer_counter / self.timer_clock as u32) as u8,
+                0xFF06 => self.timer_modulo,
+                0xFF07 => self.io_registers[0x07],
                 0xFF42 => self.scy,
                 0xFF43 => self.scx,
                 0xFF44 => self.ly,
@@ -234,9 +255,26 @@ impl Memory {
             match address {
                 // Only the top 4 bits of $FF00 are writeable, lower 4 are read only controller inputs
                 0xFF00 => self.io_registers[0] = (data & 0xF0) + (self.io_registers[0] & 0x0F),
+                0xFF04 => self.divider_register = 0,
+                0xFF05 => self.timer_counter = data as u32 * self.timer_clock as u32,
+                0xFF06 => self.timer_modulo = data,
+                0xFF07 => {
+                    self.io_registers[0x07] = data;
+                    self.timer_enable = data & 0b0000_0100 == 0b0000_0100;
+                    let clock_select = data & 0b0000_0011;
+                    self.timer_clock = match clock_select {
+                        0 => 1024,
+                        1 => 16,
+                        2 => 64,
+                        _ => 256,
+                    };
+                }
                 0xFF42 => self.scy = data,
                 0xFF43 => self.scx = data,
-                0xFF44 => self.ly = data,
+                0xFF44 => {} //read-only value
+                0xFF46 => {
+                    self.dma_transfer(data);
+                }
                 0xFF50 => {
                     if self.use_boot_rom {
                         self.use_boot_rom = false;
@@ -255,8 +293,28 @@ impl Memory {
         }
     }
 
+    fn dma_transfer(&mut self, start_address: u8) {
+        let base_address = start_address as u16 * 0x100;
+        for address in 0..0xA0 {
+            let data = self.read(base_address + address);
+            self.write(0xFE00 + address, data);
+        }
+    }
+
     fn step(&mut self) {
         self.time += 1;
+        self.divider_register += 1;
+
+        if self.divider_register / 256 > 255 {
+            self.divider_register = 0;
+        }
+
+        if self.timer_enable {
+            self.timer_counter += 1;
+            if self.timer_counter / self.timer_clock as u32 > 255 {
+                self.io_registers[0x0F] |= 0b0000_0100;
+            }
+        }
 
         if self.time == 456 {
             self.time = 0;
