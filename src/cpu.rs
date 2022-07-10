@@ -20,6 +20,7 @@ pub struct Cpu {
     pub stack_pointer: u16,
     pub program_counter: u16,
     booting: bool,
+    halt: bool, 
 }
 
 impl Cpu {
@@ -36,6 +37,7 @@ impl Cpu {
             stack_pointer: 0xFFFE,
             program_counter: 0,
             booting: true,
+            halt: false,
         }
     }
 
@@ -1992,7 +1994,9 @@ impl Cpu {
             Instruction::Nop => {
                 self.program_counter += 1;
             }
-            Instruction::Halt => todo!(),
+            Instruction::Halt => {
+                self.halt = true;
+            },
             Instruction::Stop => todo!(),
             Instruction::DisableInterrupts => {
                 memory.interrupts_enabled = false;
@@ -2136,7 +2140,7 @@ impl Cpu {
 
             //TODO: interrupts should take 5 M-cycles, but this should ony take 2
 
-            // we only want to process interrupts that are both request and enabled
+            // we only want to process interrupts that are both requested and enabled
             if requested_interrupt_flags & enabled_interrupt_flags > 0 {
                 let interrupt_flags = get_as_bits(requested_interrupt_flags);
                 memory.interrupts_enabled = false;
@@ -2161,6 +2165,45 @@ impl Cpu {
                     // Joypad
                     memory.io_registers[0x0F] = requested_interrupt_flags & 0xEF;
                     self.call_address(memory, 0x60);
+                }
+            }
+        } else if self.halt {
+            // mask the relevant flag bits just in case
+            let requested_interrupt_flags = memory.io_registers[0x0F] & 0x1F;
+            let enabled_interrupt_flags = memory.enabled_interupts & 0x1F;
+
+            //TODO: interrupts should take 5 M-cycles, but this should ony take 2
+
+            // we only want to process interrupts that are both requested and enabled
+            if requested_interrupt_flags & enabled_interrupt_flags > 0 {
+                let interrupt_flags = get_as_bits(requested_interrupt_flags);
+                memory.interrupts_enabled = false;
+                // process interrupts in order of priority and clear the IF bit of the processed interrupt
+                if interrupt_flags[7] == 1 {
+                    // VBlank
+                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFE;
+                    self.halt = false;
+                    self.program_counter += 1;
+                } else if interrupt_flags[6] == 1 {
+                    // LCD STAT
+                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFD;
+                    self.halt = false;
+                    self.program_counter += 1;
+                } else if interrupt_flags[5] == 1 {
+                    // Timer
+                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFB;
+                    self.halt = false;
+                    self.program_counter += 1;
+                } else if interrupt_flags[4] == 1 {
+                    // Serial
+                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xF7;
+                    self.halt = false;
+                    self.program_counter += 1;
+                } else if interrupt_flags[3] == 1 {
+                    // Joypad
+                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xEF;
+                    self.halt = false;
+                    self.program_counter += 1;
                 }
             }
         }
