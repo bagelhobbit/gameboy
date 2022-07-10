@@ -6,10 +6,12 @@ pub struct AluResult {
 }
 
 impl AluResult {
+    /// Create an `AluResult` from a wrapping add
     pub fn from_add(a: u8, b: u8) -> AluResult {
         AluResult::from_adc(a, b, false)
     }
 
+    /// Create an `AluResult` from a wrapping add with carry
     pub fn from_adc(a: u8, b: u8, carry: bool) -> AluResult {
         let carry = carry as u16;
         let result = a as u16 + b as u16 + carry;
@@ -24,10 +26,12 @@ impl AluResult {
         }
     }
 
+    /// Create an `AluResult` from a wrapping subtraction
     pub fn from_sub(a: u8, b: u8) -> AluResult {
         AluResult::from_sbc(a, b, false)
     }
 
+    /// Create an `AluResult` from a wrapping subtraction with carry
     pub fn from_sbc(a: u8, b: u8, carry: bool) -> AluResult {
         let a = a as i16;
         let b = b as i16;

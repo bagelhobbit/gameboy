@@ -1338,14 +1338,13 @@ impl Cpu {
             }
             Instruction::IncrementHL => {
                 let data = memory.read(self.hl());
-                let result = data as u16 + 1;
-                let write_data = (result & 0x00FF) as u8;
+                let alu = AluResult::from_add(data, 1);
 
-                self.set_zero(write_data == 0);
+                self.set_zero(alu.result == 0);
                 self.set_subtraction(false);
-                self.set_half_carry((data & 0x0F) + 1 > 0x0F);
+                self.set_half_carry(alu.half_carry);
 
-                memory.write(self.hl(), write_data);
+                memory.write(self.hl(), alu.result);
                 self.program_counter += 1;
             }
             Instruction::DecrementReg { register } => {
@@ -1395,14 +1394,13 @@ impl Cpu {
             }
             Instruction::DecrementHL => {
                 let data = memory.read(self.hl());
-                let result = data as i16 - 1;
-                let write_data = (result & 0x00FF) as u8;
+                let alu = AluResult::from_sub(data, 1);
 
-                self.set_zero(write_data == 0);
+                self.set_zero(alu.result == 0);
                 self.set_subtraction(true);
-                self.set_half_carry((data & 0x0F) < 1);
+                self.set_half_carry(alu.half_carry);
 
-                memory.write(self.hl(), write_data);
+                memory.write(self.hl(), alu.result);
                 self.program_counter += 1;
             }
             Instruction::DecimalAdjustA => {
