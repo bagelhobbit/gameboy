@@ -320,6 +320,10 @@ impl Memory {
             self.time = 0;
             self.ly += 1;
 
+            if self.ly == 144 {
+                self.io_registers[0x0F] |= 0x01; 
+            }
+
             if self.ly == 154 {
                 self.ly = 0;
                 self.frame_happened = true;
