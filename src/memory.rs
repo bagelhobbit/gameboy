@@ -1,4 +1,7 @@
-use crate::tile_info::{TileInfo, TileType};
+use crate::{
+    sprite_attribute::SpriteAttribute,
+    tile_info::{TileInfo, TileType},
+};
 
 #[derive(Debug, PartialEq, Eq)]
 enum CartridgeType {
@@ -381,6 +384,26 @@ impl Memory {
                 result[row][col] = indices[(row * 32) + col];
             }
         }
+
+        result
+    }
+
+    pub fn read_oam(&self) -> Vec<SpriteAttribute> {
+        let mut result = Vec::new();
+
+        for (index, _) in (0..self.sprite_attribute_table.len())
+            .enumerate()
+            .step_by(4)
+        {
+            let y = self.sprite_attribute_table[index];
+            let x = self.sprite_attribute_table[index + 1];
+            let tile_index = self.sprite_attribute_table[index + 2];
+            let flags = self.sprite_attribute_table[index + 3];
+
+            result.push(SpriteAttribute::new(y, x, tile_index, flags));
+        }
+
+        debug_assert_eq!(result.len(), 40);
 
         result
     }

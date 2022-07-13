@@ -8,6 +8,7 @@ mod cpu;
 mod instructions;
 mod io_registers;
 mod memory;
+mod sprite_attribute;
 mod tile_info;
 mod util;
 
@@ -52,9 +53,11 @@ fn main() {
     let color1 = Color::RGB(0x88, 0xC0, 0x70);
     let color2 = Color::RGB(0x34, 0x68, 0x56);
     let color3 = Color::RGB(0x08, 0x18, 0x20);
+    let color_transparent = Color::RGBA(0, 0, 0, 0);
 
     let mut canvas = window.into_canvas().build().unwrap();
     canvas.set_draw_color(Color::RGB(0, 255, 255));
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
     canvas.clear();
     canvas.present();
 
@@ -106,6 +109,7 @@ fn main() {
             let mut color1_rects = Vec::new();
             let mut color2_rects = Vec::new();
             let mut color3_rects = Vec::new();
+            let mut transparent_rects = Vec::new();
 
             let mut palette: u8;
             let palette_bits = get_as_bits(memory.io_registers[0x47]);
@@ -160,6 +164,62 @@ fn main() {
                 }
             }
 
+            for sprite in memory.read_oam() {
+                if sprite.y == 0 || (memory.io_registers[0x40] & 0b0000_0100 == 0 && sprite.y <= 8)
+                {
+                    //LCDC bit 2 == false, use 8x8 sprite mode
+                    continue;
+                }
+
+                //TODO: handle x == 0 (still effects scanline limit)
+                //TODO: handle scanline limits and selection priority
+                //TODO: handle x,y flip
+                //TODO: handle bg+window over obj
+                //TODO: handle 8x16 sprites
+
+                let tile = memory.vram_read_tile(TileType::Obj, sprite.index);
+
+                let x_pos = sprite.x as i32 - 8;
+                let y_pos = sprite.y as i32 - 16;
+
+                let colors = tile.get_color_ids_from_tile();
+
+                let palette_reg = if sprite.palette == 0 { 0x48 } else { 0x49 };
+                let palette_bits = get_as_bits(memory.io_registers[palette_reg]);
+
+                // Lower 2 bits ignored since they are transparent
+                // Keep a value so indexing works as expected
+                let color_values = [
+                    0,
+                    (palette_bits[4] << 1) + palette_bits[5],
+                    (palette_bits[2] << 1) + palette_bits[3],
+                    (palette_bits[0] << 1) + palette_bits[1],
+                ];
+
+                for row in 0..colors.len() {
+                    for col in 0..colors[0].len() {
+                        let rect = Rect::new(
+                            (x_pos + col as i32) * pixel_width as i32,
+                            (y_pos + row as i32) * pixel_height as i32,
+                            pixel_width,
+                            pixel_height,
+                        );
+
+                        palette = color_values[colors[row][col] as usize];
+
+                        if palette == 0 {
+                            transparent_rects.push(rect);
+                        } else if palette == 1 {
+                            color1_rects.push(rect);
+                        } else if palette == 2 {
+                            color2_rects.push(rect);
+                        } else {
+                            color3_rects.push(rect);
+                        }
+                    }
+                }
+            }
+
             canvas.set_draw_color(color0);
             canvas.fill_rects(&color0_rects).unwrap();
 
@@ -171,6 +231,9 @@ fn main() {
 
             canvas.set_draw_color(color3);
             canvas.fill_rects(&color3_rects).unwrap();
+
+            canvas.set_draw_color(color_transparent);
+            canvas.fill_rects(&transparent_rects).unwrap();
 
             memory.frame_happened = false;
         }
