@@ -1,5 +1,5 @@
-use std::fmt;
 use crate::util::get_as_bits;
+use std::fmt;
 
 #[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq)]
@@ -32,7 +32,11 @@ impl fmt::Debug for TileInfo {
             tile_colors.push('\n');
         }
 
-        write!(f, "TileInfo {{ tile: [{}], tile_type: {:?} }}\n{}", bytes, self.tile_type, tile_colors)
+        write!(
+            f,
+            "TileInfo {{ tile: [{}], tile_type: {:?} }}\n{}",
+            bytes, self.tile_type, tile_colors
+        )
     }
 }
 

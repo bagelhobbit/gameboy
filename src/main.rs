@@ -21,8 +21,7 @@ fn main() {
 
     let filename = &args[1];
 
-    let bios_contents =
-        fs::read("boot.gb").expect("Error reading BIOS");
+    let bios_contents = fs::read("boot.gb").expect("Error reading Boot ROM");
 
     let contents = fs::read(filename).expect("Error reading the given filename");
 
@@ -35,8 +34,6 @@ fn main() {
     memory.setup_mbc(cartridge_type, rom_size);
     memory.load_boot_rom(&bios_contents);
     memory.load_cartridge(&contents);
-
-    // println!("0x{:0>2X?} - 0x{:0>2X?}", cartridge_type, rom_size);
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -121,21 +118,28 @@ fn main() {
             ];
 
             // background is 18 tiles tall and 20 tiles wide
-            for y in 0..18 {
-                for x in 0..20 {
+            // render an extra tile on all sides to enable partially rendering tiles from offscreen
+            for y in 0..20 {
+                for x in 0..22 {
                     let tile = memory.vram_read_tile(
                         TileType::Background,
                         tilemap[((memory.scy as usize / 8) + y) % 32]
                             [((memory.scx as usize / 8) + x) % 32],
                     );
 
+                    let x_pos = x as i32 * 8;
+                    let y_pos = y as i32 * 8;
+
+                    let x_offset = memory.scx as i32 % 8;
+                    let y_offset = memory.scy as i32 % 8;
+
                     let colors = tile.get_color_ids_from_tile();
 
                     for row in 0..colors.len() {
                         for col in 0..colors[0].len() {
                             let rect = Rect::new(
-                                ((x * 8) + col) as i32 * pixel_width as i32,
-                                ((y * 8) + row) as i32 * pixel_height as i32,
+                                (x_pos + col as i32 - x_offset) * pixel_width as i32,
+                                (y_pos + row as i32 - y_offset) * pixel_height as i32,
                                 pixel_width,
                                 pixel_height,
                             );

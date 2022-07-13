@@ -321,7 +321,7 @@ impl Memory {
             self.ly += 1;
 
             if self.ly == 144 {
-                self.io_registers[0x0F] |= 0x01; 
+                self.io_registers[0x0F] |= 0x01;
             }
 
             if self.ly == 154 {

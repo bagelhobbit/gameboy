@@ -20,7 +20,7 @@ pub struct Cpu {
     pub stack_pointer: u16,
     pub program_counter: u16,
     booting: bool,
-    halt: bool, 
+    halt: bool,
 }
 
 impl Cpu {
@@ -1996,7 +1996,7 @@ impl Cpu {
             }
             Instruction::Halt => {
                 self.halt = true;
-            },
+            }
             Instruction::Stop => todo!(),
             Instruction::DisableInterrupts => {
                 memory.interrupts_enabled = false;
