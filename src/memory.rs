@@ -6,7 +6,7 @@ use crate::{
 #[derive(Debug, PartialEq, Eq)]
 enum CartridgeType {
     Rom,
-    MBC1,
+    Mbc1,
 }
 
 #[derive(Debug)]
@@ -32,9 +32,6 @@ pub struct Memory {
     /// * Addressed from `0xC000` to `0xDFFF`
     // In Color GameBoy (CGB) mode, the second half (0xD000 - 0xDFFF) of this block is a switchable bank
     pub wram: [u8; 0x2000],
-    // Mirror of C000~DDFF, Nintendo says use of this area is prohibited
-    // * Addressed from `0xE000` to `0xFDFF`
-    // echo_ram: [u8; 0x1DFF],
     /// Sprite Attribute Table
     /// * also Object Attribute Memory (OAM)
     /// * Addressed from `0xFE00` to `0xFE9F`
@@ -50,6 +47,8 @@ pub struct Memory {
     pub enabled_interupts: u8,
     pub interrupts_enabled: bool,
     cartridge_type: CartridgeType,
+    rom_bank: u16,
+    max_rom_bank: u16,
     time: u16,
     pub frame_happened: bool,
     divider_register: u32,
@@ -68,7 +67,7 @@ impl Memory {
             boot_rom: [0; 0x100],
             use_boot_rom: true,
             rom: [0; 0x4000],
-            switchable_rom: vec![[0; 0x4000]],
+            switchable_rom: Vec::new(),
             vram: [0; 0x2000],
             ram: [0; 0x2000],
             wram: [0; 0x2000],
@@ -78,6 +77,8 @@ impl Memory {
             enabled_interupts: 0,
             interrupts_enabled: true,
             cartridge_type: CartridgeType::Rom,
+            rom_bank: 1,
+            max_rom_bank: 2,
             time: 0,
             frame_happened: false,
             divider_register: 0,
@@ -102,41 +103,22 @@ impl Memory {
 
     /// Setup any Memory Bank Controllers (MBCs) that may exist
     pub fn setup_mbc(&mut self, cartridge_type: u8, rom_size: u8) {
-        // $00	ROM ONLY
-        // $01	MBC1
-        // $02	MBC1+RAM
-        // $03	MBC1+RAM+BATTERY
-        // $05	MBC2
-        // $06	MBC2+BATTERY
-        // $08	ROM+RAM 1
-        // $09	ROM+RAM+BATTERY 1
-        // $0B	MMM01
-        // $0C	MMM01+RAM
-        // $0D	MMM01+RAM+BATTERY
-        // $0F	MBC3+TIMER+BATTERY
-        // $10	MBC3+TIMER+RAM+BATTERY 2
-        // $11	MBC3
-        // $12	MBC3+RAM 2
-        // $13	MBC3+RAM+BATTERY 2
-        // $19	MBC5
-        // $1A	MBC5+RAM
-        // $1B	MBC5+RAM+BATTERY
-        // $1C	MBC5+RUMBLE
-        // $1D	MBC5+RUMBLE+RAM
-        // $1E	MBC5+RUMBLE+RAM+BATTERY
-        // $20	MBC6
-        // $22	MBC7+SENSOR+RUMBLE+RAM+BATTERY
-        // $FC	POCKET CAMERA
-        // $FD	BANDAI TAMA5
-        // $FE	HuC3
-        // $FF	HuC1+RAM+BATTERY
         if cartridge_type == 0x00 {
             self.cartridge_type = CartridgeType::Rom;
         } else if cartridge_type == 0x01 {
-            self.cartridge_type = CartridgeType::MBC1;
-        } else if cartridge_type <= 0x03 {
-            // plus ram access
-            self.cartridge_type = CartridgeType::MBC1;
+            self.cartridge_type = CartridgeType::Mbc1;
+        }
+
+        match rom_size {
+            0x0 => self.max_rom_bank = 2,
+            0x1 => self.max_rom_bank = 4,
+            0x2 => self.max_rom_bank = 8,
+            0x3 => self.max_rom_bank = 16,
+            0x4 => self.max_rom_bank = 32,
+            0x5 => self.max_rom_bank = 64,
+            0x6 => self.max_rom_bank = 128,
+            0x7 => self.max_rom_bank = 256,
+            _ => self.max_rom_bank = 512,
         }
     }
 
@@ -146,12 +128,23 @@ impl Memory {
 
     pub fn load_cartridge(&mut self, contents: &Vec<u8>) {
         self.rom[..].clone_from_slice(&contents[..0x4000]);
-        self.switchable_rom[0][..contents.len() - 0x4000].clone_from_slice(&contents[0x4000..]);
+
+        let content_size = contents.len();
+        for i in 1..self.max_rom_bank as usize {
+            let mut data = [0; 0x4000];
+            let start_address = 0x4000 * i;
+            if content_size >= start_address + 0x4000 {
+                data.clone_from_slice(&contents[start_address..(start_address + 0x4000)]);
+                self.switchable_rom.push(data);
+            } else if content_size > start_address {
+                data[..content_size - start_address].clone_from_slice(&contents[start_address..]);
+                self.switchable_rom.push(data);
+            } else {
+                self.switchable_rom.push(data);
+            }
+        }
     }
 
-    //memory mapper
-    // should this take a length as well?, or just map one address at a time
-    // also might want to move this into some sort of address bus type (rename `Memory` to `AddressBus` and make arrays private?)
     pub fn read(&mut self, address: u16) -> u8 {
         self.step();
         self.step();
@@ -161,18 +154,11 @@ impl Memory {
         if self.use_boot_rom && address < 256 {
             self.boot_rom[address as usize]
         } else if address <= 0x3FFF {
-            if self.cartridge_type == CartridgeType::MBC1 {
-                if address < 0x2000 {
-                    self.rom[address as usize]
-                } else {
-                    todo!()
-                }
-            } else {
-                self.rom[address as usize]
-            }
+            self.rom[address as usize]
         } else if address <= 0x7FFF {
             let mapped = address - 0x4000;
-            self.switchable_rom[0][mapped as usize]
+            // Bank $00 is the unswitchable rom bank so subtract one to get the correct index
+            self.switchable_rom[self.rom_bank as usize - 1][mapped as usize]
         } else if address <= 0x9FFF {
             let mapped = address - 0x8000;
             self.vram[mapped as usize]
@@ -231,10 +217,13 @@ impl Memory {
         self.step();
 
         if address <= 0x3FFF {
-            self.rom[address as usize] = data;
+            if address >= 0x2000 {
+                println!("Bank Selection data: {:0>2x}, bank:{}", data, data & 0x1F);
+                let bank = data as u16 & 0x1F;
+                self.rom_bank = if bank == 0 { 1 } else { bank };
+            }
         } else if address <= 0x7FFF {
-            let mapped = address - 0x4000;
-            self.switchable_rom[0][mapped as usize] = data;
+            todo!()
         } else if address <= 0x9FFF {
             let mapped = address - 0x8000;
             self.vram[mapped as usize] = data;

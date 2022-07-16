@@ -80,8 +80,8 @@ fn test_load_hl_reg() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
     cpu.b = 0xE5;
 
     cpu.execute(
@@ -91,7 +91,7 @@ fn test_load_hl_reg() {
         &mut memory,
     );
 
-    assert_eq!(memory.rom[0x1100], 0xE5);
+    assert_eq!(memory.read(0xFFAB), 0xE5);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -101,13 +101,13 @@ fn test_load_hl_8() {
     let mut memory = Memory::new();
     memory.write(0xFF50, 1);
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
     memory.rom[1] = 0xE5;
 
     cpu.execute(Instruction::LoadHL8, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0xE5);
+    assert_eq!(memory.read(0xFFAB), 0xE5);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -163,12 +163,12 @@ fn test_load_bc_a() {
     let mut memory = Memory::new();
 
     cpu.a = 0xE5;
-    cpu.b = 0x11;
-    cpu.c = 0x00;
+    cpu.b = 0xFF;
+    cpu.c = 0xAB;
 
     cpu.execute(Instruction::LoadBCA, &mut memory);
 
-    assert_eq!(memory.rom[cpu.bc() as usize], cpu.a);
+    assert_eq!(memory.read(cpu.bc()), cpu.a);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -178,12 +178,12 @@ fn test_load_de_a() {
     let mut memory = Memory::new();
 
     cpu.a = 0xE5;
-    cpu.d = 0x11;
-    cpu.e = 0x00;
+    cpu.d = 0xFF;
+    cpu.e = 0xAB;
 
     cpu.execute(Instruction::LoadDEA, &mut memory);
 
-    assert_eq!(memory.rom[cpu.de() as usize], cpu.a);
+    assert_eq!(memory.read(cpu.de()), cpu.a);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -194,12 +194,12 @@ fn test_load_address_a() {
     memory.write(0xFF50, 1);
 
     cpu.a = 0xE5;
-    memory.rom[1] = 0x00;
-    memory.rom[2] = 0x11;
+    memory.rom[1] = 0xAB;
+    memory.rom[2] = 0xFF;
 
     cpu.execute(Instruction::LoadAddressA, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], cpu.a);
+    assert_eq!(memory.read(0xFFAB), cpu.a);
     assert_eq!(cpu.program_counter, 3);
 }
 
@@ -267,13 +267,13 @@ fn test_load_inc_hl_a() {
     let mut memory = Memory::new();
 
     cpu.a = 0xE5;
-    cpu.h = 0x00;
+    cpu.h = 0xC0;
     cpu.l = 0xFF;
 
     cpu.execute(Instruction::LoadIncrementHLA, &mut memory);
 
-    assert_eq!(memory.rom[0x00FF], 0xE5);
-    assert_eq!(cpu.h, 1);
+    assert_eq!(memory.read(0xC0FF), 0xE5);
+    assert_eq!(cpu.h, 0xC1);
     assert_eq!(cpu.l, 0);
     assert_eq!(cpu.program_counter, 1);
 }
@@ -302,13 +302,13 @@ fn test_load_dec_hl_a() {
     let mut memory = Memory::new();
 
     cpu.a = 0xE5;
-    cpu.h = 0x01;
+    cpu.h = 0xC1;
     cpu.l = 0x00;
 
     cpu.execute(Instruction::LoadDecrementHLA, &mut memory);
 
-    assert_eq!(memory.rom[0x0100], 0xE5);
-    assert_eq!(cpu.h, 0);
+    assert_eq!(memory.read(0xC100), 0xE5);
+    assert_eq!(cpu.h, 0xC0);
     assert_eq!(cpu.l, 0xFF);
     assert_eq!(cpu.program_counter, 1);
 }
@@ -360,13 +360,13 @@ fn test_load_address_sp() {
     memory.write(0xFF50, 1);
 
     cpu.stack_pointer = 0xABCD;
-    memory.rom[1] = 0x00;
-    memory.rom[2] = 0x1F;
+    memory.rom[1] = 0xAB;
+    memory.rom[2] = 0xFF;
 
     cpu.execute(Instruction::LoadAddressSP, &mut memory);
 
-    assert_eq!(memory.read(0x1F00), 0xCD);
-    assert_eq!(memory.read(0x1F01), 0xAB);
+    assert_eq!(memory.read(0xFFAB), 0xCD);
+    assert_eq!(memory.read(0xFFAC), 0xAB);
     assert_eq!(cpu.program_counter, 3);
 }
 
@@ -390,7 +390,7 @@ fn test_push_rr() {
     let mut memory = Memory::new();
     memory.write(0xFF50, 1);
 
-    cpu.stack_pointer = 0x1102;
+    cpu.stack_pointer = 0xFFAD;
     cpu.a = 0xE5;
     cpu.set_zero(true);
     cpu.set_carry(true);
@@ -402,9 +402,9 @@ fn test_push_rr() {
         &mut memory,
     );
 
-    assert_eq!(memory.read(0x1101), 0xE5);
-    assert_eq!(memory.read(0x1100), 0b1001_0000);
-    assert_eq!(cpu.stack_pointer, 0x1100);
+    assert_eq!(memory.read(0xFFAC), 0xE5);
+    assert_eq!(memory.read(0xFFAB), 0b1001_0000);
+    assert_eq!(cpu.stack_pointer, 0xFFAB);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -849,13 +849,13 @@ fn test_inc_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0x0F;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0x0F);
 
     cpu.execute(Instruction::IncrementHL, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0x10);
+    assert_eq!(memory.read(0xFFAB), 0x10);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
     assert_eq!(cpu.is_half_carry(), true);
@@ -867,13 +867,13 @@ fn test_inc_hl_overflow() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0xFF;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0xFF);
 
     cpu.execute(Instruction::IncrementHL, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0);
+    assert_eq!(memory.read(0xFFAB), 0);
     assert_eq!(cpu.is_zero(), true);
     assert_eq!(cpu.is_subtraction(), false);
     assert_eq!(cpu.is_half_carry(), true);
@@ -927,13 +927,13 @@ fn test_dec_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0x10;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0x10);
 
     cpu.execute(Instruction::DecrementHL, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0x0F);
+    assert_eq!(memory.read(0xFFAB), 0x0F);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), true);
     assert_eq!(cpu.is_half_carry(), true);
@@ -945,13 +945,13 @@ fn test_dec_hl_overflow() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0x0;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0x0);
 
     cpu.execute(Instruction::DecrementHL, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0xFF);
+    assert_eq!(memory.read(0xFFAB), 0xFF);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), true);
     assert_eq!(cpu.is_half_carry(), true);
@@ -1315,15 +1315,15 @@ fn test_rlc_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0b1010_0101;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0b1010_0101);
     cpu.set_subtraction(true);
     cpu.set_half_carry(true);
 
     cpu.execute(Instruction::RotateHLLeft, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0b0100_1011);
+    assert_eq!(memory.read(0xFFAB), 0b0100_1011);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
     assert_eq!(cpu.is_half_carry(), false);
@@ -1360,15 +1360,15 @@ fn test_rl_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0b1010_0101;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0b1010_0101);
     cpu.set_subtraction(true);
     cpu.set_half_carry(true);
 
     cpu.execute(Instruction::RotateHLLeftThroughCarry, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0b0100_1010);
+    assert_eq!(memory.read(0xFFAB), 0b0100_1010);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
     assert_eq!(cpu.is_half_carry(), false);
@@ -1406,16 +1406,16 @@ fn test_rrc_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0b1010_0101;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0b1010_0101);
     cpu.set_zero(true);
     cpu.set_subtraction(true);
     cpu.set_half_carry(true);
 
     cpu.execute(Instruction::RotateHLRight, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0b1101_0010);
+    assert_eq!(memory.read(0xFFAB), 0b1101_0010);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
     assert_eq!(cpu.is_half_carry(), false);
@@ -1453,16 +1453,16 @@ fn test_rr_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0b1010_0101;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0b1010_0101);
     cpu.set_zero(true);
     cpu.set_subtraction(true);
     cpu.set_half_carry(true);
 
     cpu.execute(Instruction::RotateHLRightThroughCarry, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0b0101_0010);
+    assert_eq!(memory.read(0xFFAB), 0b0101_0010);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
     assert_eq!(cpu.is_half_carry(), false);
@@ -1496,12 +1496,12 @@ fn test_sla_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0b1010_1010;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0b1010_1010);
     cpu.execute(Instruction::ShiftHLLeftArithmetic, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0b0101_0100);
+    assert_eq!(memory.read(0xFFAB), 0b0101_0100);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
     assert_eq!(cpu.is_half_carry(), false);
@@ -1535,12 +1535,12 @@ fn test_swap_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0xF0;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0xF0);
     cpu.execute(Instruction::SwapHL, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0x0F);
+    assert_eq!(memory.read(0xFFAB), 0x0F);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
     assert_eq!(cpu.is_half_carry(), false);
@@ -1574,12 +1574,12 @@ fn test_sra_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0b1010_1001;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0b1010_1001);
     cpu.execute(Instruction::ShiftHLRightArithmetic, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0b1101_0100);
+    assert_eq!(memory.read(0xFFAB), 0b1101_0100);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
     assert_eq!(cpu.is_half_carry(), false);
@@ -1613,12 +1613,12 @@ fn test_srl_hl() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0b1010_1001;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0b1010_1001);
     cpu.execute(Instruction::ShiftHLRightLogical, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0b0101_0100);
+    assert_eq!(memory.read(0xFFAB), 0b0101_0100);
     assert_eq!(cpu.is_zero(), false);
     assert_eq!(cpu.is_subtraction(), false);
     assert_eq!(cpu.is_half_carry(), false);
@@ -1723,12 +1723,12 @@ fn test_set_hl_bit() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0);
     cpu.execute(Instruction::SetHLBit { bit: 5 }, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0b0010_0000);
+    assert_eq!(memory.read(0xFFAB), 0b0010_0000);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1755,12 +1755,12 @@ fn test_reset_hl_bit() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.h = 0x11;
-    cpu.l = 0x00;
-    memory.rom[0x1100] = 0xFF;
+    cpu.h = 0xFF;
+    cpu.l = 0xAB;
+    memory.write(0xFFAB, 0xFF);
     cpu.execute(Instruction::ResetHLBit { bit: 5 }, &mut memory);
 
-    assert_eq!(memory.rom[0x1100], 0b1101_1111);
+    assert_eq!(memory.read(0xFFAB), 0b1101_1111);
     assert_eq!(cpu.program_counter, 2);
 }
 

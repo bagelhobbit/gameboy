@@ -6,7 +6,6 @@ use util::get_as_bits;
 mod alu_result;
 mod cpu;
 mod instructions;
-mod io_registers;
 mod memory;
 mod sprite_attribute;
 mod tile_info;
