@@ -392,8 +392,8 @@ fn test_push_rr() {
 
     cpu.stack_pointer = 0xFFAD;
     cpu.a = 0xE5;
-    cpu.set_zero(true);
-    cpu.set_carry(true);
+    cpu.is_zero = true;
+    cpu.is_carry = true;
 
     cpu.execute(
         Instruction::PushReg {
@@ -448,10 +448,10 @@ fn test_and_a_reg() {
     );
 
     assert_eq!(cpu.a, 0b0010_0011);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -471,10 +471,10 @@ fn test_and_a_reg_zero() {
     );
 
     assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -490,10 +490,10 @@ fn test_and_a() {
     cpu.execute(Instruction::AndA, &mut memory);
 
     assert_eq!(cpu.a, 0b0010_0011);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -508,10 +508,10 @@ fn test_and_a_zero() {
     cpu.execute(Instruction::AndA, &mut memory);
 
     assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -528,10 +528,10 @@ fn test_and_a_hl() {
     cpu.execute(Instruction::AndAHL, &mut memory);
 
     assert_eq!(cpu.a, 0b0010_0011);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -548,10 +548,10 @@ fn test_and_a_hl_zero() {
     cpu.execute(Instruction::AndAHL, &mut memory);
 
     assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -571,10 +571,10 @@ fn test_xor_a_reg() {
     );
 
     assert_eq!(cpu.a, 0xFF);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -594,10 +594,10 @@ fn test_xor_a_reg_zero() {
     );
 
     assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -613,10 +613,10 @@ fn test_xor_a() {
     cpu.execute(Instruction::XorA, &mut memory);
 
     assert_eq!(cpu.a, 0xFF);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -632,10 +632,10 @@ fn test_xor_a_zero() {
     cpu.execute(Instruction::XorA, &mut memory);
 
     assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -652,10 +652,10 @@ fn test_xor_a_hl() {
     cpu.execute(Instruction::XorAHL, &mut memory);
 
     assert_eq!(cpu.a, 0xFF);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -672,10 +672,10 @@ fn test_xor_a_hl_zero() {
     cpu.execute(Instruction::XorAHL, &mut memory);
 
     assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -695,10 +695,10 @@ fn test_or_a_reg() {
     );
 
     assert_eq!(cpu.a, 0xFF);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -718,10 +718,10 @@ fn test_or_a_reg_zero() {
     );
 
     assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -737,10 +737,10 @@ fn test_or_a() {
     cpu.execute(Instruction::OrA, &mut memory);
 
     assert_eq!(cpu.a, 0xFF);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -755,10 +755,10 @@ fn test_or_a_zero() {
     cpu.execute(Instruction::OrA, &mut memory);
 
     assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -775,10 +775,10 @@ fn test_or_a_hl() {
     cpu.execute(Instruction::OrAHL, &mut memory);
 
     assert_eq!(cpu.a, 0xFF);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -795,10 +795,10 @@ fn test_or_a_hl_zero() {
     cpu.execute(Instruction::OrAHL, &mut memory);
 
     assert_eq!(cpu.a, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -817,9 +817,9 @@ fn test_inc_r() {
     );
 
     assert_eq!(cpu.e, 0x10);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -838,9 +838,9 @@ fn test_inc_r_overflow() {
     );
 
     assert_eq!(cpu.c, 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -856,9 +856,9 @@ fn test_inc_hl() {
     cpu.execute(Instruction::IncrementHL, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0x10);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -874,9 +874,9 @@ fn test_inc_hl_overflow() {
     cpu.execute(Instruction::IncrementHL, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0);
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -895,9 +895,9 @@ fn test_dec_r() {
     );
 
     assert_eq!(cpu.e, 0x0f);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), true);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, true);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -916,9 +916,9 @@ fn test_dec_r_overflow() {
     );
 
     assert_eq!(cpu.c, 0xFF);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), true);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, true);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -934,9 +934,9 @@ fn test_dec_hl() {
     cpu.execute(Instruction::DecrementHL, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0x0F);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), true);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, true);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -952,9 +952,9 @@ fn test_dec_hl_overflow() {
     cpu.execute(Instruction::DecrementHL, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0xFF);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), true);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, true);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -966,15 +966,15 @@ fn test_daa_addition() {
     let mut memory = Memory::new();
 
     cpu.a = 0b0100_0001;
-    cpu.set_subtraction(false);
-    cpu.set_half_carry(true);
+    cpu.is_subtraction = false;
+    cpu.is_half_carry = true;
 
     cpu.execute(Instruction::DecimalAdjustA, &mut memory);
 
     assert_eq!(cpu.a, 0b0100_0111);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -986,14 +986,14 @@ fn test_daa_subtraction() {
     let mut memory = Memory::new();
 
     cpu.a = 0b0001_1111;
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(Instruction::DecimalAdjustA, &mut memory);
 
     assert_eq!(cpu.a, 0b0001_1001);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_half_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_half_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -1030,9 +1030,9 @@ fn test_add_hl_rr() {
     );
 
     assert_eq!(cpu.hl(), 0x1001);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -1054,9 +1054,9 @@ fn test_add_hl_rr_overflow() {
     );
 
     assert_eq!(cpu.hl(), 1);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -1146,10 +1146,10 @@ fn test_add_sp_offset_postive() {
     cpu.execute(Instruction::AddSPOffset, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1163,10 +1163,10 @@ fn test_add_sp_offset_negative() {
     cpu.execute(Instruction::AddSPOffset, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0xFFFE - 10);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1180,10 +1180,10 @@ fn test_load_hl_sp_offset_postive() {
     cpu.execute(Instruction::LoadHLSPOffset, &mut memory);
 
     assert_eq!(cpu.hl(), 0);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1197,10 +1197,10 @@ fn test_load_hl_sp_offset_negative() {
     cpu.execute(Instruction::LoadHLSPOffset, &mut memory);
 
     assert_eq!(cpu.hl(), 0xFFFE - 10);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1212,17 +1212,17 @@ fn test_rlca() {
     let mut memory = Memory::new();
 
     cpu.a = 0b1010_0101;
-    cpu.set_zero(true);
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_zero = true;
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(Instruction::RotateALeft, &mut memory);
 
     assert_eq!(cpu.a, 0b0100_1011);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -1232,17 +1232,17 @@ fn test_rla() {
     let mut memory = Memory::new();
 
     cpu.a = 0b1010_0101;
-    cpu.set_zero(true);
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_zero = true;
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(Instruction::RotateALeftThroughCarry, &mut memory);
 
     assert_eq!(cpu.a, 0b0100_1010);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -1252,17 +1252,17 @@ fn test_rrca() {
     let mut memory = Memory::new();
 
     cpu.a = 0b1010_0101;
-    cpu.set_zero(true);
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_zero = true;
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(Instruction::RotateARight, &mut memory);
 
     assert_eq!(cpu.a, 0b1101_0010);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -1272,17 +1272,17 @@ fn test_rra() {
     let mut memory = Memory::new();
 
     cpu.a = 0b1010_0101;
-    cpu.set_zero(true);
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_zero = true;
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(Instruction::RotateARightThroughCarry, &mut memory);
 
     assert_eq!(cpu.a, 0b0101_0010);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -1292,8 +1292,8 @@ fn test_rlc() {
     let mut memory = Memory::new();
 
     cpu.c = 0b1010_0101;
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(
         Instruction::RotateLeft {
@@ -1303,10 +1303,10 @@ fn test_rlc() {
     );
 
     assert_eq!(cpu.c, 0b0100_1011);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1318,16 +1318,16 @@ fn test_rlc_hl() {
     cpu.h = 0xFF;
     cpu.l = 0xAB;
     memory.write(0xFFAB, 0b1010_0101);
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(Instruction::RotateHLLeft, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0b0100_1011);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1337,8 +1337,8 @@ fn test_rl() {
     let mut memory = Memory::new();
 
     cpu.d = 0b1010_0101;
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(
         Instruction::RotateLeftThroughCarry {
@@ -1348,10 +1348,10 @@ fn test_rl() {
     );
 
     assert_eq!(cpu.d, 0b0100_1010);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1363,16 +1363,16 @@ fn test_rl_hl() {
     cpu.h = 0xFF;
     cpu.l = 0xAB;
     memory.write(0xFFAB, 0b1010_0101);
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(Instruction::RotateHLLeftThroughCarry, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0b0100_1010);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1382,9 +1382,9 @@ fn test_rrc() {
     let mut memory = Memory::new();
 
     cpu.e = 0b1010_0101;
-    cpu.set_zero(true);
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_zero = true;
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(
         Instruction::RotateRight {
@@ -1394,10 +1394,10 @@ fn test_rrc() {
     );
 
     assert_eq!(cpu.e, 0b1101_0010);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1409,17 +1409,17 @@ fn test_rrc_hl() {
     cpu.h = 0xFF;
     cpu.l = 0xAB;
     memory.write(0xFFAB, 0b1010_0101);
-    cpu.set_zero(true);
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_zero = true;
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(Instruction::RotateHLRight, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0b1101_0010);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1429,9 +1429,9 @@ fn test_rr() {
     let mut memory = Memory::new();
 
     cpu.h = 0b1010_0101;
-    cpu.set_zero(true);
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_zero = true;
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(
         Instruction::RotateRightThroughCarry {
@@ -1441,10 +1441,10 @@ fn test_rr() {
     );
 
     assert_eq!(cpu.h, 0b0101_0010);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1456,17 +1456,17 @@ fn test_rr_hl() {
     cpu.h = 0xFF;
     cpu.l = 0xAB;
     memory.write(0xFFAB, 0b1010_0101);
-    cpu.set_zero(true);
-    cpu.set_subtraction(true);
-    cpu.set_half_carry(true);
+    cpu.is_zero = true;
+    cpu.is_subtraction = true;
+    cpu.is_half_carry = true;
 
     cpu.execute(Instruction::RotateHLRightThroughCarry, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0b0101_0010);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1484,10 +1484,10 @@ fn test_sla() {
     );
 
     assert_eq!(cpu.a, 0b0101_0100);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1502,10 +1502,10 @@ fn test_sla_hl() {
     cpu.execute(Instruction::ShiftHLLeftArithmetic, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0b0101_0100);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1523,10 +1523,10 @@ fn test_swap() {
     );
 
     assert_eq!(cpu.b, 0x0F);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1541,10 +1541,10 @@ fn test_swap_hl() {
     cpu.execute(Instruction::SwapHL, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0x0F);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, false);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1562,10 +1562,10 @@ fn test_sra() {
     );
 
     assert_eq!(cpu.e, 0b1101_0100);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1580,10 +1580,10 @@ fn test_sra_hl() {
     cpu.execute(Instruction::ShiftHLRightArithmetic, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0b1101_0100);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1601,10 +1601,10 @@ fn test_srl() {
     );
 
     assert_eq!(cpu.e, 0b0101_0100);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1619,10 +1619,10 @@ fn test_srl_hl() {
     cpu.execute(Instruction::ShiftHLRightLogical, &mut memory);
 
     assert_eq!(memory.read(0xFFAB), 0b0101_0100);
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), false);
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, false);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1642,9 +1642,9 @@ fn test_test_bit_true() {
         &mut memory,
     );
 
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1662,9 +1662,9 @@ fn test_test_bit_false() {
         &mut memory,
     );
 
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1678,9 +1678,9 @@ fn test_test_hl_bit_true() {
     memory.rom[0x1100] = 0b1010_0000;
     cpu.execute(Instruction::TestHLBit { bit: 5 }, &mut memory);
 
-    assert_eq!(cpu.is_zero(), false);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, false);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1694,9 +1694,9 @@ fn test_test_hl_bit_false() {
     memory.rom[0x1100] = 0b1010_0000;
     cpu.execute(Instruction::TestHLBit { bit: 0 }, &mut memory);
 
-    assert_eq!(cpu.is_zero(), true);
-    assert_eq!(cpu.is_subtraction(), false);
-    assert_eq!(cpu.is_half_carry(), true);
+    assert_eq!(cpu.is_zero, true);
+    assert_eq!(cpu.is_subtraction, false);
+    assert_eq!(cpu.is_half_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1771,13 +1771,13 @@ fn test_ccf() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    cpu.set_carry(true);
+    cpu.is_carry = true;
     cpu.execute(Instruction::FlipCarryFlag, &mut memory);
 
-    assert_eq!(cpu.is_carry(), false);
+    assert_eq!(cpu.is_carry, false);
     cpu.execute(Instruction::FlipCarryFlag, &mut memory);
 
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 2);
 }
 
@@ -1788,7 +1788,7 @@ fn test_scf() {
 
     cpu.execute(Instruction::SetCarryFlag, &mut memory);
 
-    assert_eq!(cpu.is_carry(), true);
+    assert_eq!(cpu.is_carry, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -1874,7 +1874,7 @@ fn test_jp_flags() {
     cpu.execute(Instruction::JumpConditional { flag }, &mut memory);
     assert_eq!(cpu.program_counter, 0x1100);
 
-    cpu.set_zero(true);
+    cpu.is_zero = true;
     cpu.execute(Instruction::JumpConditional { flag }, &mut memory);
     assert_eq!(cpu.program_counter, 0x1103);
 }
@@ -1913,7 +1913,7 @@ fn test_jr_flags() {
     assert_eq!(cpu.program_counter, pc + 2 + 25);
 
     let pc = cpu.program_counter;
-    cpu.set_zero(true);
+    cpu.is_zero = true;
     cpu.execute(Instruction::JumpRelativeConditional { flag }, &mut memory);
     assert_eq!(cpu.program_counter, pc + 2);
 }
@@ -1948,7 +1948,7 @@ fn test_call_conditional() {
     assert_eq!(cpu.stack_pointer, 0xFFFC);
     assert_eq!(cpu.program_counter, 0x1100);
 
-    cpu.set_carry(true);
+    cpu.is_carry = true;
     cpu.execute(Instruction::CallConditional { flag }, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0xFFFC);
@@ -1978,13 +1978,13 @@ fn test_ret_conditional() {
     memory.write(0xFFFA, 0x00);
     memory.write(0xFFFB, 0x11);
     cpu.stack_pointer -= 4;
-    cpu.set_zero(true);
+    cpu.is_zero = true;
     cpu.execute(Instruction::ReturnConditional { flag }, &mut memory);
 
     assert_eq!(cpu.stack_pointer, 0xFFFC);
     assert_eq!(cpu.program_counter, 0x1100);
 
-    cpu.set_zero(false);
+    cpu.is_zero = false;
     cpu.execute(Instruction::ReturnConditional { flag }, &mut memory);
     assert_eq!(cpu.stack_pointer, 0xFFFC);
     assert_eq!(cpu.program_counter, 0x1100 + 1);

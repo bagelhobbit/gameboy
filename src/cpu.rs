@@ -16,7 +16,10 @@ pub struct Cpu {
     pub h: u8,
     pub l: u8,
     pub a: u8,
-    pub f: u8,
+    pub is_zero: bool,
+    pub is_subtraction: bool,
+    pub is_half_carry: bool,
+    pub is_carry: bool,
     pub stack_pointer: u16,
     pub program_counter: u16,
     booting: bool,
@@ -33,7 +36,10 @@ impl Cpu {
             h: 0,
             l: 0,
             a: 0,
-            f: 0,
+            is_zero: false,
+            is_subtraction: false,
+            is_half_carry: false,
+            is_carry: false,
             stack_pointer: 0xFFFE,
             program_counter: 0,
             booting: true,
@@ -75,52 +81,22 @@ impl Cpu {
         }
     }
 
-    fn is_zero(&self) -> bool {
-        self.f & 0b1000_0000 == 0b1000_0000
+    pub fn flags_to_byte(&self) -> u8 {
+        let binary_string = format!(
+            "{}{}{}{}0000",
+            (self.is_zero) as u8,
+            (self.is_subtraction) as u8,
+            (self.is_half_carry) as u8,
+            (self.is_carry) as u8
+        );
+        u8::from_str_radix(&binary_string, 2).unwrap()
     }
 
-    fn set_zero(&mut self, value: bool) {
-        if value {
-            self.f |= 0b1000_0000;
-        } else {
-            self.f &= 0b0111_1111;
-        }
-    }
-
-    fn is_subtraction(&self) -> bool {
-        self.f & 0b0100_0000 == 0b0100_0000
-    }
-
-    fn set_subtraction(&mut self, value: bool) {
-        if value {
-            self.f |= 0b0100_0000;
-        } else {
-            self.f &= 0b1011_1111;
-        }
-    }
-
-    fn is_half_carry(&self) -> bool {
-        self.f & 0b0010_0000 == 0b0010_0000
-    }
-
-    fn set_half_carry(&mut self, value: bool) {
-        if value {
-            self.f |= 0b0010_0000;
-        } else {
-            self.f &= 0b1101_1111;
-        }
-    }
-
-    fn is_carry(&self) -> bool {
-        self.f & 0b0001_0000 == 0b0001_0000
-    }
-
-    fn set_carry(&mut self, value: bool) {
-        if value {
-            self.f |= 0b0001_0000;
-        } else {
-            self.f &= 0b1110_1111;
-        }
+    fn byte_to_flags(&mut self, byte: u8) {
+        self.is_zero = (byte & 0b1000_0000) != 0;
+        self.is_subtraction = (byte & 0b0100_0000) != 0;
+        self.is_half_carry = (byte & 0b0010_0000) != 0;
+        self.is_carry = (byte & 0b001_0000) != 0;
     }
 
     pub fn parse(&mut self, memory: &mut Memory) -> Instruction {
@@ -1004,7 +980,7 @@ impl Cpu {
                         memory.write(self.stack_pointer + 1, self.h);
                     }
                     DoubleRegister::AF => {
-                        memory.write(self.stack_pointer, self.f);
+                        memory.write(self.stack_pointer, self.flags_to_byte());
                         memory.write(self.stack_pointer + 1, self.a);
                     }
                     _ => panic!("Invalid Instruction"),
@@ -1031,7 +1007,7 @@ impl Cpu {
                     }
                     DoubleRegister::AF => {
                         self.a = upper;
-                        self.f = lower & 0xF0;
+                        self.byte_to_flags(lower);
                     }
                     _ => panic!("Invalid Instruction"),
                 }
@@ -1076,17 +1052,17 @@ impl Cpu {
                     Register::A => self.a,
                 };
 
-                self.wrapped_addition_carry(value, self.is_carry());
+                self.wrapped_addition_carry(value, self.is_carry);
                 self.program_counter += 1;
             }
             Instruction::AddCarryA => {
                 let value = memory.read(self.program_counter + 1);
-                self.wrapped_addition_carry(value, self.is_carry());
+                self.wrapped_addition_carry(value, self.is_carry);
                 self.program_counter += 2;
             }
             Instruction::AddCarryAHL => {
                 let value = memory.read(self.hl());
-                self.wrapped_addition_carry(value, self.is_carry());
+                self.wrapped_addition_carry(value, self.is_carry);
                 self.program_counter += 1;
             }
             Instruction::SubtractAReg { register } => {
@@ -1124,17 +1100,17 @@ impl Cpu {
                     Register::A => self.a,
                 };
 
-                self.a = self.wrapped_subtraction_carry(value, self.is_carry());
+                self.a = self.wrapped_subtraction_carry(value, self.is_carry);
                 self.program_counter += 1;
             }
             Instruction::SubtractACarry => {
                 let value = memory.read(self.program_counter + 1);
-                self.a = self.wrapped_subtraction_carry(value, self.is_carry());
+                self.a = self.wrapped_subtraction_carry(value, self.is_carry);
                 self.program_counter += 2;
             }
             Instruction::SubtractAHLCarry => {
                 let value = memory.read(self.hl());
-                self.a = self.wrapped_subtraction_carry(value, self.is_carry());
+                self.a = self.wrapped_subtraction_carry(value, self.is_carry);
                 self.program_counter += 1;
             }
             Instruction::AndAReg { register } => {
@@ -1150,10 +1126,10 @@ impl Cpu {
 
                 self.a &= value;
 
-                self.set_zero(self.a == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(true);
-                self.set_carry(false);
+                self.is_zero = self.a == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = true;
+                self.is_carry = false;
 
                 self.program_counter += 1;
             }
@@ -1162,10 +1138,10 @@ impl Cpu {
 
                 self.a &= value;
 
-                self.set_zero(self.a == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(true);
-                self.set_carry(false);
+                self.is_zero = self.a == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = true;
+                self.is_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1174,10 +1150,10 @@ impl Cpu {
 
                 self.a &= value;
 
-                self.set_zero(self.a == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(true);
-                self.set_carry(false);
+                self.is_zero = self.a == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = true;
+                self.is_carry = false;
 
                 self.program_counter += 1;
             }
@@ -1194,10 +1170,10 @@ impl Cpu {
 
                 self.a ^= value;
 
-                self.set_zero(self.a == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
-                self.set_carry(false);
+                self.is_zero = self.a == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
+                self.is_carry = false;
 
                 self.program_counter += 1;
             }
@@ -1206,10 +1182,10 @@ impl Cpu {
 
                 self.a ^= value;
 
-                self.set_zero(self.a == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
-                self.set_carry(false);
+                self.is_zero = self.a == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
+                self.is_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1218,10 +1194,10 @@ impl Cpu {
 
                 self.a ^= value;
 
-                self.set_zero(self.a == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
-                self.set_carry(false);
+                self.is_zero = self.a == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
+                self.is_carry = false;
 
                 self.program_counter += 1;
             }
@@ -1238,10 +1214,10 @@ impl Cpu {
 
                 self.a |= value;
 
-                self.set_zero(self.a == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
-                self.set_carry(false);
+                self.is_zero = self.a == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
+                self.is_carry = false;
 
                 self.program_counter += 1;
             }
@@ -1250,10 +1226,10 @@ impl Cpu {
 
                 self.a |= value;
 
-                self.set_zero(self.a == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
-                self.set_carry(false);
+                self.is_zero = self.a == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
+                self.is_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1262,10 +1238,10 @@ impl Cpu {
 
                 self.a |= value;
 
-                self.set_zero(self.a == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
-                self.set_carry(false);
+                self.is_zero = self.a == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
+                self.is_carry = false;
 
                 self.program_counter += 1;
             }
@@ -1332,9 +1308,9 @@ impl Cpu {
                     }
                 };
 
-                self.set_zero(alu.result == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(alu.half_carry);
+                self.is_zero = alu.result == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = alu.half_carry;
 
                 self.program_counter += 1;
             }
@@ -1342,9 +1318,9 @@ impl Cpu {
                 let data = memory.read(self.hl());
                 let alu = AluResult::from_add(data, 1);
 
-                self.set_zero(alu.result == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(alu.half_carry);
+                self.is_zero = alu.result == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = alu.half_carry;
 
                 memory.write(self.hl(), alu.result);
                 self.program_counter += 1;
@@ -1388,9 +1364,9 @@ impl Cpu {
                     }
                 };
 
-                self.set_zero(alu.result == 0);
-                self.set_subtraction(true);
-                self.set_half_carry(alu.half_carry);
+                self.is_zero = alu.result == 0;
+                self.is_subtraction = true;
+                self.is_half_carry = alu.half_carry;
 
                 self.program_counter += 1;
             }
@@ -1398,9 +1374,9 @@ impl Cpu {
                 let data = memory.read(self.hl());
                 let alu = AluResult::from_sub(data, 1);
 
-                self.set_zero(alu.result == 0);
-                self.set_subtraction(true);
-                self.set_half_carry(alu.half_carry);
+                self.is_zero = alu.result == 0;
+                self.is_subtraction = true;
+                self.is_half_carry = alu.half_carry;
 
                 memory.write(self.hl(), alu.result);
                 self.program_counter += 1;
@@ -1408,16 +1384,16 @@ impl Cpu {
             Instruction::DecimalAdjustA => {
                 let mut correction: u16 = 0;
 
-                if self.is_half_carry() || (!self.is_subtraction() && (self.a & 0x0F) > 9) {
+                if self.is_half_carry || (!self.is_subtraction && (self.a & 0x0F) > 9) {
                     correction += 0x06;
                 }
 
-                if self.is_carry() || (!self.is_subtraction() && self.a > 0x99) {
+                if self.is_carry || (!self.is_subtraction && self.a > 0x99) {
                     correction += 0x60;
-                    self.set_carry(true);
+                    self.is_carry = true;
                 }
 
-                if self.is_subtraction() {
+                if self.is_subtraction {
                     let result = self.a as i16 - correction as i16;
                     self.a = (result & 0x00FF) as u8;
                 } else {
@@ -1425,14 +1401,14 @@ impl Cpu {
                     self.a = (result & 0x00FF) as u8;
                 }
 
-                self.set_zero(self.a == 0);
-                self.set_half_carry(false);
+                self.is_zero = self.a == 0;
+                self.is_half_carry = false;
                 self.program_counter += 1;
             }
             Instruction::Complement => {
                 self.a ^= 0xFF;
-                self.set_subtraction(true);
-                self.set_half_carry(true);
+                self.is_subtraction = true;
+                self.is_half_carry = true;
                 self.program_counter += 1;
             }
 
@@ -1451,9 +1427,9 @@ impl Cpu {
 
                 let alu = AluResult::from_adc(self.h, get_upper_byte(value), alu.carry);
 
-                self.set_subtraction(false);
-                self.set_half_carry(alu.half_carry);
-                self.set_carry(alu.carry);
+                self.is_subtraction = false;
+                self.is_half_carry = alu.half_carry;
+                self.is_carry = alu.carry;
 
                 self.h = alu.result;
                 self.program_counter += 1;
@@ -1529,13 +1505,13 @@ impl Cpu {
             Instruction::AddSPOffset => {
                 let offset = memory.read(self.program_counter + 1);
 
-                self.set_zero(false);
-                self.set_subtraction(false);
+                self.is_zero = false;
+                self.is_subtraction = false;
 
                 let alu = AluResult::from_add(get_lower_byte(self.stack_pointer), offset);
 
-                self.set_half_carry(alu.half_carry);
-                self.set_carry(alu.carry);
+                self.is_half_carry = alu.half_carry;
+                self.is_carry = alu.carry;
 
                 self.stack_pointer = self.stack_pointer.wrapping_add(offset as i8 as u16);
                 self.program_counter += 2;
@@ -1543,13 +1519,13 @@ impl Cpu {
             Instruction::LoadHLSPOffset => {
                 let offset = memory.read(self.program_counter + 1);
 
-                self.set_zero(false);
-                self.set_subtraction(false);
+                self.is_zero = false;
+                self.is_subtraction = false;
 
                 let alu = AluResult::from_add(get_lower_byte(self.stack_pointer), offset);
 
-                self.set_half_carry(alu.half_carry);
-                self.set_carry(alu.carry);
+                self.is_half_carry = alu.half_carry;
+                self.is_carry = alu.carry;
 
                 let sp = self.stack_pointer.wrapping_add(offset as i8 as u16);
                 self.h = get_upper_byte(sp);
@@ -1561,36 +1537,36 @@ impl Cpu {
             Instruction::RotateALeft => {
                 self.a = self.rotate_left(self.a);
 
-                self.set_zero(false);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_zero = false;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 1;
             }
             Instruction::RotateALeftThroughCarry => {
                 self.a = self.rotate_left_through_carry(self.a);
 
-                self.set_zero(false);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_zero = false;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 1;
             }
             Instruction::RotateARight => {
                 self.a = self.rotate_right(self.a);
 
-                self.set_zero(false);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_zero = false;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 1;
             }
             Instruction::RotateARightThroughCarry => {
                 self.a = self.rotate_right_through_carry(self.a);
 
-                self.set_zero(false);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_zero = false;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 1;
             }
@@ -1598,36 +1574,36 @@ impl Cpu {
                 match register {
                     Register::B => {
                         self.b = self.rotate_left(self.b);
-                        self.set_zero(self.b == 0);
+                        self.is_zero = self.b == 0;
                     }
                     Register::C => {
                         self.c = self.rotate_left(self.c);
-                        self.set_zero(self.c == 0);
+                        self.is_zero = self.c == 0;
                     }
                     Register::D => {
                         self.d = self.rotate_left(self.d);
-                        self.set_zero(self.d == 0);
+                        self.is_zero = self.d == 0;
                     }
                     Register::E => {
                         self.e = self.rotate_left(self.e);
-                        self.set_zero(self.e == 0);
+                        self.is_zero = self.e == 0;
                     }
                     Register::H => {
                         self.h = self.rotate_left(self.h);
-                        self.set_zero(self.h == 0);
+                        self.is_zero = self.h == 0;
                     }
                     Register::L => {
                         self.l = self.rotate_left(self.l);
-                        self.set_zero(self.l == 0);
+                        self.is_zero = self.l == 0;
                     }
                     Register::A => {
                         self.a = self.rotate_left(self.a);
-                        self.set_zero(self.a == 0);
+                        self.is_zero = self.a == 0;
                     }
                 }
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1636,9 +1612,9 @@ impl Cpu {
                 let result = self.rotate_left(data);
                 memory.write(self.hl(), result);
 
-                self.set_zero(result == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_zero = result == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1646,36 +1622,36 @@ impl Cpu {
                 match register {
                     Register::B => {
                         self.b = self.rotate_left_through_carry(self.b);
-                        self.set_zero(self.b == 0);
+                        self.is_zero = self.b == 0;
                     }
                     Register::C => {
                         self.c = self.rotate_left_through_carry(self.c);
-                        self.set_zero(self.c == 0);
+                        self.is_zero = self.c == 0;
                     }
                     Register::D => {
                         self.d = self.rotate_left_through_carry(self.d);
-                        self.set_zero(self.d == 0);
+                        self.is_zero = self.d == 0;
                     }
                     Register::E => {
                         self.e = self.rotate_left_through_carry(self.e);
-                        self.set_zero(self.e == 0);
+                        self.is_zero = self.e == 0;
                     }
                     Register::H => {
                         self.h = self.rotate_left_through_carry(self.h);
-                        self.set_zero(self.h == 0);
+                        self.is_zero = self.h == 0;
                     }
                     Register::L => {
                         self.l = self.rotate_left_through_carry(self.l);
-                        self.set_zero(self.l == 0);
+                        self.is_zero = self.l == 0;
                     }
                     Register::A => {
                         self.a = self.rotate_left_through_carry(self.a);
-                        self.set_zero(self.a == 0);
+                        self.is_zero = self.a == 0;
                     }
                 }
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1684,9 +1660,9 @@ impl Cpu {
                 let result = self.rotate_left_through_carry(data);
                 memory.write(self.hl(), result);
 
-                self.set_zero(result == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_zero = result == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1694,36 +1670,36 @@ impl Cpu {
                 match register {
                     Register::B => {
                         self.b = self.rotate_right(self.b);
-                        self.set_zero(self.b == 0);
+                        self.is_zero = self.b == 0;
                     }
                     Register::C => {
                         self.c = self.rotate_right(self.c);
-                        self.set_zero(self.c == 0);
+                        self.is_zero = self.c == 0;
                     }
                     Register::D => {
                         self.d = self.rotate_right(self.d);
-                        self.set_zero(self.d == 0);
+                        self.is_zero = self.d == 0;
                     }
                     Register::E => {
                         self.e = self.rotate_right(self.e);
-                        self.set_zero(self.e == 0);
+                        self.is_zero = self.e == 0;
                     }
                     Register::H => {
                         self.h = self.rotate_right(self.h);
-                        self.set_zero(self.h == 0);
+                        self.is_zero = self.h == 0;
                     }
                     Register::L => {
                         self.l = self.rotate_right(self.l);
-                        self.set_zero(self.l == 0);
+                        self.is_zero = self.l == 0;
                     }
                     Register::A => {
                         self.a = self.rotate_right(self.a);
-                        self.set_zero(self.a == 0);
+                        self.is_zero = self.a == 0;
                     }
                 }
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1732,9 +1708,9 @@ impl Cpu {
                 let result = self.rotate_right(data);
                 memory.write(self.hl(), result);
 
-                self.set_zero(result == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_zero = result == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1742,36 +1718,36 @@ impl Cpu {
                 match register {
                     Register::B => {
                         self.b = self.rotate_right_through_carry(self.b);
-                        self.set_zero(self.b == 0);
+                        self.is_zero = self.b == 0;
                     }
                     Register::C => {
                         self.c = self.rotate_right_through_carry(self.c);
-                        self.set_zero(self.c == 0);
+                        self.is_zero = self.c == 0;
                     }
                     Register::D => {
                         self.d = self.rotate_right_through_carry(self.d);
-                        self.set_zero(self.d == 0);
+                        self.is_zero = self.d == 0;
                     }
                     Register::E => {
                         self.e = self.rotate_right_through_carry(self.e);
-                        self.set_zero(self.e == 0);
+                        self.is_zero = self.e == 0;
                     }
                     Register::H => {
                         self.h = self.rotate_right_through_carry(self.h);
-                        self.set_zero(self.h == 0);
+                        self.is_zero = self.h == 0;
                     }
                     Register::L => {
                         self.l = self.rotate_right_through_carry(self.l);
-                        self.set_zero(self.l == 0);
+                        self.is_zero = self.l == 0;
                     }
                     Register::A => {
                         self.a = self.rotate_right_through_carry(self.a);
-                        self.set_zero(self.a == 0);
+                        self.is_zero = self.a == 0;
                     }
                 }
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1780,9 +1756,9 @@ impl Cpu {
                 let result = self.rotate_right_through_carry(data);
                 memory.write(self.hl(), result);
 
-                self.set_zero(result == 0);
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_zero = result == 0;
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1811,8 +1787,8 @@ impl Cpu {
                     }
                 }
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1820,8 +1796,8 @@ impl Cpu {
                 let data = memory.read(self.hl());
                 memory.write(self.hl(), self.shift_left(data));
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1850,18 +1826,18 @@ impl Cpu {
                     }
                 }
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
-                self.set_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
+                self.is_carry = false;
                 self.program_counter += 2;
             }
             Instruction::SwapHL => {
                 let data = memory.read(self.hl());
                 memory.write(self.hl(), self.swap(data));
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
-                self.set_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
+                self.is_carry = false;
                 self.program_counter += 2;
             }
             Instruction::ShiftRightArithmetic { register } => {
@@ -1875,8 +1851,8 @@ impl Cpu {
                     Register::A => self.a = self.shift_right_arithmetic(self.a),
                 }
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1884,8 +1860,8 @@ impl Cpu {
                 let data = memory.read(self.hl());
                 memory.write(self.hl(), self.shift_right_arithmetic(data));
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1900,8 +1876,8 @@ impl Cpu {
                     Register::A => self.a = self.shift_right_logical(self.a),
                 }
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1909,8 +1885,8 @@ impl Cpu {
                 let data = memory.read(self.hl());
                 memory.write(self.hl(), self.shift_right_logical(data));
 
-                self.set_subtraction(false);
-                self.set_half_carry(false);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
 
                 self.program_counter += 2;
             }
@@ -1927,16 +1903,16 @@ impl Cpu {
                     Register::A => self.test_bit(bit, self.a),
                 }
 
-                self.set_subtraction(false);
-                self.set_half_carry(true);
+                self.is_subtraction = false;
+                self.is_half_carry = true;
                 self.program_counter += 2;
             }
             Instruction::TestHLBit { bit } => {
                 let data = memory.read(self.hl());
                 self.test_bit(bit, data);
 
-                self.set_subtraction(false);
-                self.set_half_carry(true);
+                self.is_subtraction = false;
+                self.is_half_carry = true;
                 self.program_counter += 2;
             }
             Instruction::SetBit { bit, register } => {
@@ -1980,15 +1956,15 @@ impl Cpu {
 
             // CPU Control instructions
             Instruction::FlipCarryFlag => {
-                self.set_subtraction(false);
-                self.set_half_carry(false);
-                self.set_carry(!self.is_carry());
+                self.is_subtraction = false;
+                self.is_half_carry = false;
+                self.is_carry = !self.is_carry;
                 self.program_counter += 1;
             }
             Instruction::SetCarryFlag => {
-                self.set_subtraction(false);
-                self.set_half_carry(false);
-                self.set_carry(true);
+                self.is_subtraction = false;
+                self.is_half_carry = false;
+                self.is_carry = true;
                 self.program_counter += 1;
             }
             Instruction::Nop => {
@@ -2021,10 +1997,10 @@ impl Cpu {
                 let high = memory.read(self.program_counter + 2);
 
                 let predicate = match flag {
-                    ConditionalFlag::NZ => !self.is_zero(),
-                    ConditionalFlag::Z => self.is_zero(),
-                    ConditionalFlag::NC => !self.is_carry(),
-                    ConditionalFlag::C => self.is_carry(),
+                    ConditionalFlag::NZ => !self.is_zero,
+                    ConditionalFlag::Z => self.is_zero,
+                    ConditionalFlag::NC => !self.is_carry,
+                    ConditionalFlag::C => self.is_carry,
                 };
 
                 if predicate {
@@ -2048,10 +2024,10 @@ impl Cpu {
                 let offset = memory.read(self.program_counter + 1) as i8;
 
                 let predicate = match flag {
-                    ConditionalFlag::NZ => !self.is_zero(),
-                    ConditionalFlag::Z => self.is_zero(),
-                    ConditionalFlag::NC => !self.is_carry(),
-                    ConditionalFlag::C => self.is_carry(),
+                    ConditionalFlag::NZ => !self.is_zero,
+                    ConditionalFlag::Z => self.is_zero,
+                    ConditionalFlag::NC => !self.is_carry,
+                    ConditionalFlag::C => self.is_carry,
                 };
 
                 self.program_counter += 2;
@@ -2076,10 +2052,10 @@ impl Cpu {
                 let high = memory.read(self.program_counter + 2);
 
                 let predicate = match flag {
-                    ConditionalFlag::NZ => !self.is_zero(),
-                    ConditionalFlag::Z => self.is_zero(),
-                    ConditionalFlag::NC => !self.is_carry(),
-                    ConditionalFlag::C => self.is_carry(),
+                    ConditionalFlag::NZ => !self.is_zero,
+                    ConditionalFlag::Z => self.is_zero,
+                    ConditionalFlag::NC => !self.is_carry,
+                    ConditionalFlag::C => self.is_carry,
                 };
 
                 self.program_counter += 3;
@@ -2096,10 +2072,10 @@ impl Cpu {
             }
             Instruction::ReturnConditional { flag } => {
                 let predicate = match flag {
-                    ConditionalFlag::NZ => !self.is_zero(),
-                    ConditionalFlag::Z => self.is_zero(),
-                    ConditionalFlag::NC => !self.is_carry(),
-                    ConditionalFlag::C => self.is_carry(),
+                    ConditionalFlag::NZ => !self.is_zero,
+                    ConditionalFlag::Z => self.is_zero,
+                    ConditionalFlag::NC => !self.is_carry,
+                    ConditionalFlag::C => self.is_carry,
                 };
 
                 if predicate {
@@ -2214,10 +2190,10 @@ impl Cpu {
         let alu = AluResult::from_add(self.a, value);
 
         self.a = alu.result;
-        self.set_zero(self.a == 0);
-        self.set_subtraction(false);
-        self.set_half_carry(alu.half_carry);
-        self.set_carry(alu.carry);
+        self.is_zero = self.a == 0;
+        self.is_subtraction = false;
+        self.is_half_carry = alu.half_carry;
+        self.is_carry = alu.carry;
     }
 
     /// Adds `value` to the `A` register and sets the appropriate flags (z0hc)
@@ -2225,20 +2201,20 @@ impl Cpu {
         let alu = AluResult::from_adc(self.a, value, carry);
 
         self.a = alu.result;
-        self.set_zero(self.a == 0);
-        self.set_subtraction(false);
-        self.set_half_carry(alu.half_carry);
-        self.set_carry(alu.carry);
+        self.is_zero = self.a == 0;
+        self.is_subtraction = false;
+        self.is_half_carry = alu.half_carry;
+        self.is_carry = alu.carry;
     }
 
     /// Returns the result of subtracting `value` from the `A` register and sets the appropriate flags (z1hc)
     fn wrapped_subtraction(&mut self, value: u8) -> u8 {
         let alu = AluResult::from_sub(self.a, value);
 
-        self.set_zero(alu.result == 0);
-        self.set_subtraction(true);
-        self.set_half_carry(alu.half_carry);
-        self.set_carry(alu.carry);
+        self.is_zero = alu.result == 0;
+        self.is_subtraction = true;
+        self.is_half_carry = alu.half_carry;
+        self.is_carry = alu.carry;
 
         alu.result
     }
@@ -2247,10 +2223,10 @@ impl Cpu {
     fn wrapped_subtraction_carry(&mut self, value: u8, carry: bool) -> u8 {
         let alu = AluResult::from_sbc(self.a, value, carry);
 
-        self.set_zero(alu.result == 0);
-        self.set_subtraction(true);
-        self.set_half_carry(alu.half_carry);
-        self.set_carry(alu.carry);
+        self.is_zero = alu.result == 0;
+        self.is_subtraction = true;
+        self.is_half_carry = alu.half_carry;
+        self.is_carry = alu.carry;
 
         alu.result
     }
@@ -2261,7 +2237,7 @@ impl Cpu {
         let carry = msb >> 7;
         let result = (value << 1) + carry;
 
-        self.set_carry(carry == 1);
+        self.is_carry = carry == 1;
 
         result
     }
@@ -2269,10 +2245,10 @@ impl Cpu {
     /// Returns the left rotated through carry value and sets the carry flag
     fn rotate_left_through_carry(&mut self, value: u8) -> u8 {
         let msb = value & 0b1000_0000;
-        let carry = if self.is_carry() { 1 } else { 0 };
+        let carry = if self.is_carry { 1 } else { 0 };
         let result = (value << 1) + carry;
 
-        self.set_carry((msb >> 7) == 1);
+        self.is_carry = msb != 0;
 
         result
     }
@@ -2282,7 +2258,7 @@ impl Cpu {
         let lsb = value & 0b0000_0001;
         let result = (value >> 1) + (lsb << 7);
 
-        self.set_carry(lsb == 1);
+        self.is_carry = lsb == 1;
 
         result
     }
@@ -2290,10 +2266,10 @@ impl Cpu {
     /// Returns the right rotated through carry value and sets the carry flag
     fn rotate_right_through_carry(&mut self, value: u8) -> u8 {
         let lsb = value & 0b0000_0001;
-        let carry = if self.is_carry() { 0b1000_0000 } else { 0 };
+        let carry = if self.is_carry { 0b1000_0000 } else { 0 };
         let result = (value >> 1) + carry;
 
-        self.set_carry(lsb == 1);
+        self.is_carry = lsb == 1;
 
         result
     }
@@ -2304,8 +2280,8 @@ impl Cpu {
         let carry = msb >> 7;
         let result = value << 1;
 
-        self.set_zero(result == 0);
-        self.set_carry(carry == 1);
+        self.is_zero = result == 0;
+        self.is_carry = carry == 1;
 
         result
     }
@@ -2316,7 +2292,7 @@ impl Cpu {
         let lower = get_lower_bits(value);
         let result = (lower << 4) + upper;
 
-        self.set_zero(result == 0);
+        self.is_zero = result == 0;
 
         result
     }
@@ -2327,8 +2303,8 @@ impl Cpu {
         let lsb = value & 0b0000_0001;
         let result = value >> 1 | msb;
 
-        self.set_zero(result == 0);
-        self.set_carry(lsb == 1);
+        self.is_zero = result == 0;
+        self.is_carry = lsb == 1;
 
         result
     }
@@ -2338,8 +2314,8 @@ impl Cpu {
         let lsb = value & 0b0000_0001;
         let result = value >> 1;
 
-        self.set_zero(result == 0);
-        self.set_carry(lsb == 1);
+        self.is_zero = result == 0;
+        self.is_carry = lsb == 1;
 
         result
     }
@@ -2351,7 +2327,7 @@ impl Cpu {
         let bits = get_as_bits(value);
 
         if position < 8 {
-            self.set_zero(bits[7 - position as usize] == 0);
+            self.is_zero = bits[7 - position as usize] == 0;
         }
     }
 
