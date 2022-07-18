@@ -218,7 +218,6 @@ impl Memory {
 
         if address <= 0x3FFF {
             if address >= 0x2000 {
-                println!("Bank Selection data: {:0>2x}, bank:{}", data, data & 0x1F);
                 let bank = data as u16 & 0x1F;
                 self.rom_bank = if bank == 0 { 1 } else { bank };
             }

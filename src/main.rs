@@ -172,7 +172,6 @@ fn main() {
 
                 //TODO: handle x == 0 (still effects scanline limit)
                 //TODO: handle scanline limits and selection priority
-                //TODO: handle x,y flip
                 //TODO: handle bg+window over obj
                 //TODO: handle 8x16 sprites
 
@@ -181,7 +180,17 @@ fn main() {
                 let x_pos = sprite.x as i32 - 8;
                 let y_pos = sprite.y as i32 - 16;
 
-                let colors = tile.get_color_ids_from_tile();
+                let mut colors = tile.get_color_ids_from_tile();
+
+                if sprite.x_flip {
+                    for col in colors.iter_mut() {
+                        col.reverse();
+                    }
+                }
+
+                if sprite.y_flip {
+                    colors.reverse();
+                }
 
                 let palette_reg = if sprite.palette == 0 { 0x48 } else { 0x49 };
                 let palette_bits = get_as_bits(memory.io_registers[palette_reg]);
