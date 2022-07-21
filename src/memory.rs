@@ -27,7 +27,7 @@ pub struct Memory {
     /// 8 KiB External RAM
     /// * From cartridge, switchable bank if any
     /// * Addressed from `0xA000` to `0xBFFF`
-    pub ram: [u8; 0x2000],
+    pub switchable_ram: Vec<[u8; 0x2000]>,
     /// 8 KiB Work RAM (WRAM)
     /// * Addressed from `0xC000` to `0xDFFF`
     // In Color GameBoy (CGB) mode, the second half (0xD000 - 0xDFFF) of this block is a switchable bank
@@ -49,6 +49,9 @@ pub struct Memory {
     cartridge_type: CartridgeType,
     rom_bank: u16,
     max_rom_bank: u16,
+    ram_enable: bool,
+    ram_bank: u8,
+    max_ram_bank: u8,
     time: u16,
     pub frame_happened: bool,
     divider_register: u32,
@@ -69,7 +72,7 @@ impl Memory {
             rom: [0; 0x4000],
             switchable_rom: Vec::new(),
             vram: [0; 0x2000],
-            ram: [0; 0x2000],
+            switchable_ram: Vec::new(),
             wram: [0; 0x2000],
             sprite_attribute_table: [0; 0xA0],
             io_registers: [0; 0x80],
@@ -79,6 +82,9 @@ impl Memory {
             cartridge_type: CartridgeType::Rom,
             rom_bank: 1,
             max_rom_bank: 2,
+            ram_enable: false,
+            ram_bank: 0,
+            max_ram_bank: 0,
             time: 0,
             frame_happened: false,
             divider_register: 0,
@@ -101,8 +107,22 @@ impl Memory {
         self.use_boot_rom
     }
 
-    /// Setup any Memory Bank Controllers (MBCs) that may exist
-    pub fn setup_mbc(&mut self, cartridge_type: u8, rom_size: u8) {
+    pub fn load_boot_rom(&mut self, contents: &[u8]) {
+        self.boot_rom[..].clone_from_slice(contents);
+    }
+
+    pub fn load_cartridge(&mut self, contents: &Vec<u8>) {
+        self.rom[..].clone_from_slice(&contents[..0x4000]);
+
+        let cartridge_type = self.rom[0x147];
+        let rom_size = self.rom[0x148];
+        let ram_size = self.rom[0x149];
+
+        println!(
+            "Cartridge Type: 0x{:0>2X}, ROM Size: 0x{:0>2X}, RAM Size: 0x{:0>2X}",
+            cartridge_type, rom_size, ram_size
+        );
+
         if cartridge_type == 0x00 {
             self.cartridge_type = CartridgeType::Rom;
         } else if cartridge_type == 0x01 {
@@ -118,16 +138,17 @@ impl Memory {
             0x5 => self.max_rom_bank = 64,
             0x6 => self.max_rom_bank = 128,
             0x7 => self.max_rom_bank = 256,
-            _ => self.max_rom_bank = 512,
+            _ => self.max_rom_bank = 512, //0x8
         }
-    }
 
-    pub fn load_boot_rom(&mut self, contents: &[u8]) {
-        self.boot_rom[..].clone_from_slice(contents);
-    }
-
-    pub fn load_cartridge(&mut self, contents: &Vec<u8>) {
-        self.rom[..].clone_from_slice(&contents[..0x4000]);
+        match ram_size {
+            0x0 => self.max_ram_bank = 0,
+            0x1 => self.max_ram_bank = 0, // Unused
+            0x2 => self.max_ram_bank = 1,
+            0x3 => self.max_ram_bank = 4,
+            0x4 => self.max_ram_bank = 16,
+            _ => self.max_ram_bank = 8, //0x5
+        }
 
         let content_size = contents.len();
         for i in 1..self.max_rom_bank as usize {
@@ -142,6 +163,10 @@ impl Memory {
             } else {
                 self.switchable_rom.push(data);
             }
+        }
+
+        for _ in 0..self.max_ram_bank {
+            self.switchable_ram.push([0; 0x2000]);
         }
     }
 
@@ -163,8 +188,12 @@ impl Memory {
             let mapped = address - 0x8000;
             self.vram[mapped as usize]
         } else if address <= 0xBFFF {
-            let mapped = address - 0xA000;
-            self.ram[mapped as usize]
+            if self.ram_enable {
+                let mapped = address - 0xA000;
+                self.switchable_ram[self.ram_bank as usize][mapped as usize]
+            } else {
+                0xFF
+            }
         } else if address <= 0xDFFF {
             let mapped = address - 0xC000;
             self.wram[mapped as usize]
@@ -217,18 +246,41 @@ impl Memory {
         self.step();
 
         if address <= 0x3FFF {
-            if address >= 0x2000 {
+            if address <= 0x1FFF {
+                if data & 0x0F == 0xA {
+                    self.ram_enable = true;
+                } else {
+                    self.ram_enable = false;
+                }
+            } else {
                 let bank = data as u16 & 0x1F;
                 self.rom_bank = if bank == 0 { 1 } else { bank };
             }
         } else if address <= 0x7FFF {
-            todo!()
+            if address <= 0x5FFF {
+                // Only settable if we have more than 32 KiB ram (ie more than 4 banks)
+                if self.max_ram_bank >= 4 {
+                    self.ram_bank = data;
+                    println!("Ram Bank: {}", self.ram_bank);
+                }
+
+                // Only settable if we have more than 1 MiB of rom (ie more than 64 banks)
+                if self.max_rom_bank >= 64 {
+                    // set top upper two bits (bits 5-6) of the ROM bank bank number
+                    todo!()
+                }
+            } else {
+                // Banking mode select
+                todo!()
+            }
         } else if address <= 0x9FFF {
             let mapped = address - 0x8000;
             self.vram[mapped as usize] = data;
         } else if address <= 0xBFFF {
-            let mapped = address - 0xA000;
-            self.ram[mapped as usize] = data;
+            if self.ram_enable {
+                let mapped = address - 0xA000;
+                self.switchable_ram[self.ram_bank as usize][mapped as usize] = data;
+            }
         } else if address <= 0xDFFF {
             let mapped = address - 0xC000;
             self.wram[mapped as usize] = data;

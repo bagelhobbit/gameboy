@@ -29,9 +29,6 @@ fn main() {
 
     let mut memory = Memory::new();
 
-    let cartridge_type = contents[0x147];
-    let rom_size = contents[0x148];
-    memory.setup_mbc(cartridge_type, rom_size);
     memory.load_boot_rom(&bios_contents);
     memory.load_cartridge(&contents);
 
