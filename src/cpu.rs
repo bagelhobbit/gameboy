@@ -24,6 +24,7 @@ pub struct Cpu {
     pub program_counter: u16,
     booting: bool,
     halt: bool,
+    pub debug: bool,
 }
 
 impl Cpu {
@@ -44,6 +45,7 @@ impl Cpu {
             program_counter: 0,
             booting: true,
             halt: false,
+            debug: false,
         }
     }
 

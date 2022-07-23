@@ -1,6 +1,6 @@
 use crate::{cpu::Cpu, instructions::Instruction, memory::Memory, tile_info::TileType};
 use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
-use std::{env, fs};
+use std::{collections::HashSet, env, fs};
 use util::get_as_bits;
 
 mod alu_result;
@@ -68,27 +68,27 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => break 'running,
+                Event::KeyDown {
+                    keycode: Some(Keycode::F12),
+                    ..
+                } => {
+                    cpu.debug = true;
+                    memory.debug = true;
+                }
                 _ => {}
             }
         }
 
-        // let pressed_keys = pressed_keycode_set(&event_pump);
-        // let new_keys: HashSet<Keycode> =
-        //     newly_pressed(&old_scancodes, &pressed_scancode_set(&event_pump))
-        //         .iter()
-        //         .filter_map(|&s| Keycode::from_scancode(s))
-        //         .collect();
+        let pressed_keys = pressed_keycode_set(&event_pump);
+        memory.set_joypad_inputs(pressed_keys);
 
         for _ in 0..60 {
             let instruction = cpu.parse(&mut memory);
 
-            if !memory.using_boot_rom() {
-                // println!("addr={:0>4x}, code={:0>2x} {:?}, a={:0>2x}, f={:0>2x}, b={:0>2x}, c={:0>2x}, d={:0>2x}, e={:0>2x}, h={:0>2x}, l={:0>2x} sp={:0>4x}", 
-                // cpu.program_counter, memory.read(cpu.program_counter), instruction, cpu.a, cpu.f, cpu.b, cpu.c, cpu.d,cpu.e, cpu.h,cpu.l, cpu.stack_pointer);
+            if !memory.using_boot_rom() && cpu.debug {
+                println!("addr={:0>4x}, a={:0>2x}, f={:0>2x}, b={:0>2x}, c={:0>2x}, d={:0>2x}, e={:0>2x}, h={:0>2x}, l={:0>2x}, sp={:0>4x}, code={:0>2x} {:?}",
+                cpu.program_counter, cpu.a, cpu.flags_to_byte(), cpu.b, cpu.c, cpu.d,cpu.e, cpu.h,cpu.l, cpu.stack_pointer, memory.read(cpu.program_counter), instruction);
             }
-
-            // println!("addr={:0>4x}, code={:0>2x}, a={:0>2x}, f={:0>2x}, b={:0>2x}, c={:0>2x}, d={:0>2x}, e={:0>2x}, h={:0>2x}, l={:0>2x} sp={:0>4x}",
-            // cpu.program_counter, memory.read(cpu.program_counter), cpu.a, cpu.f, cpu.b, cpu.c, cpu.d,cpu.e, cpu.h,cpu.l, cpu.stack_pointer);
 
             if instruction == Instruction::Invalid {
                 panic!("Invalid Instruction");
@@ -247,4 +247,12 @@ fn main() {
 
         canvas.present();
     }
+}
+
+fn pressed_keycode_set(event_pump: &sdl2::EventPump) -> HashSet<Keycode> {
+    event_pump
+        .keyboard_state()
+        .pressed_scancodes()
+        .filter_map(Keycode::from_scancode)
+        .collect()
 }

@@ -2,11 +2,49 @@ use crate::{
     sprite_attribute::SpriteAttribute,
     tile_info::{TileInfo, TileType},
 };
+use sdl2::keyboard::Keycode;
+use std::collections::HashSet;
 
 #[derive(Debug, PartialEq, Eq)]
 enum CartridgeType {
     Rom,
     Mbc1,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ButtonType {
+    None,
+    Action,
+    Direction,
+}
+
+#[derive(Debug)]
+struct Joypad {
+    selected_buttons: ButtonType,
+    down_pressed: bool,
+    up_pressed: bool,
+    left_pressed: bool,
+    right_pressed: bool,
+    start_pressed: bool,
+    select_pressed: bool,
+    b_pressed: bool,
+    a_pressed: bool,
+}
+
+impl Joypad {
+    pub fn new(selected_buttons: ButtonType) -> Joypad {
+        Joypad {
+            selected_buttons,
+            down_pressed: false,
+            up_pressed: false,
+            left_pressed: false,
+            right_pressed: false,
+            start_pressed: false,
+            select_pressed: false,
+            b_pressed: false,
+            a_pressed: false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -54,6 +92,7 @@ pub struct Memory {
     max_ram_bank: u8,
     time: u16,
     pub frame_happened: bool,
+    joypad: Joypad,
     divider_register: u32,
     timer_counter: u32,
     timer_modulo: u8,
@@ -62,11 +101,12 @@ pub struct Memory {
     ly: u8,
     pub scy: u8,
     pub scx: u8,
+    pub debug: bool,
 }
 
 impl Memory {
     pub fn new() -> Memory {
-        let mut mem = Memory {
+        Memory {
             boot_rom: [0; 0x100],
             use_boot_rom: true,
             rom: [0; 0x4000],
@@ -87,6 +127,7 @@ impl Memory {
             max_ram_bank: 0,
             time: 0,
             frame_happened: false,
+            joypad: Joypad::new(ButtonType::None),
             divider_register: 0,
             timer_counter: 0,
             timer_modulo: 0,
@@ -95,12 +136,8 @@ impl Memory {
             ly: 0,
             scy: 0,
             scx: 0,
-        };
-
-        // set default controller inputs to none (0 - pressed)
-        mem.io_registers[0] = 0x0F;
-
-        mem
+            debug: false,
+        }
     }
 
     pub fn using_boot_rom(&self) -> bool {
@@ -212,7 +249,29 @@ impl Memory {
             0
         } else if address <= 0xFF7F {
             match address {
-                0xFF00 => self.io_registers[0],
+                0xFF00 => match self.joypad.selected_buttons {
+                    ButtonType::Action => {
+                        let binary_string = format!(
+                            "1101{}{}{}{}",
+                            (!self.joypad.start_pressed) as u8,
+                            (!self.joypad.select_pressed) as u8,
+                            (!self.joypad.b_pressed) as u8,
+                            (!self.joypad.a_pressed) as u8
+                        );
+                        u8::from_str_radix(&binary_string, 2).unwrap()
+                    }
+                    ButtonType::Direction => {
+                        let binary_string = format!(
+                            "1110{}{}{}{}",
+                            (!self.joypad.down_pressed) as u8,
+                            (!self.joypad.up_pressed) as u8,
+                            (!self.joypad.left_pressed) as u8,
+                            (!self.joypad.right_pressed) as u8
+                        );
+                        u8::from_str_radix(&binary_string, 2).unwrap()
+                    }
+                    ButtonType::None => 0xFF,
+                },
                 0xFF04 => {
                     // GB freq  4.194304 MHz
                     // DIV freq 16384 Hz
@@ -261,7 +320,6 @@ impl Memory {
                 // Only settable if we have more than 32 KiB ram (ie more than 4 banks)
                 if self.max_ram_bank >= 4 {
                     self.ram_bank = data;
-                    println!("Ram Bank: {}", self.ram_bank);
                 }
 
                 // Only settable if we have more than 1 MiB of rom (ie more than 64 banks)
@@ -297,7 +355,16 @@ impl Memory {
         } else if address <= 0xFF7F {
             match address {
                 // Only the top 4 bits of $FF00 are writeable, lower 4 are read only controller inputs
-                0xFF00 => self.io_registers[0] = (data & 0xF0) + (self.io_registers[0] & 0x0F),
+                0xFF00 => {
+                    // If Bit 5 == 0 then Action buttons are selected, Bit 4 is unset for Direction buttons
+                    if (data & 0x20) == 0 {
+                        self.joypad.selected_buttons = ButtonType::Action;
+                    } else if (data & 0x10) == 0 {
+                        self.joypad.selected_buttons = ButtonType::Direction;
+                    } else {
+                        self.joypad.selected_buttons = ButtonType::None;
+                    }
+                }
                 0xFF04 => self.divider_register = 0,
                 0xFF05 => self.timer_counter = data as u32 * self.timer_clock as u32,
                 0xFF06 => self.timer_modulo = data,
@@ -446,6 +513,42 @@ impl Memory {
         debug_assert_eq!(result.len(), 40);
 
         result
+    }
+
+    pub fn set_joypad_inputs(&mut self, pressed_keys: HashSet<Keycode>) {
+        self.joypad = Joypad::new(self.joypad.selected_buttons);
+
+        if pressed_keys.contains(&Keycode::Down) {
+            self.joypad.down_pressed = true;
+        }
+
+        if pressed_keys.contains(&Keycode::Up) {
+            self.joypad.up_pressed = true;
+        }
+
+        if pressed_keys.contains(&Keycode::Left) {
+            self.joypad.left_pressed = true;
+        }
+
+        if pressed_keys.contains(&Keycode::Right) {
+            self.joypad.right_pressed = true;
+        }
+
+        if pressed_keys.contains(&Keycode::Return) {
+            self.joypad.start_pressed = true;
+        }
+
+        if pressed_keys.contains(&Keycode::RShift) || pressed_keys.contains(&Keycode::LShift) {
+            self.joypad.select_pressed = true;
+        }
+
+        if pressed_keys.contains(&Keycode::A) {
+            self.joypad.b_pressed = true;
+        }
+
+        if pressed_keys.contains(&Keycode::S) {
+            self.joypad.a_pressed = true;
+        }
     }
 }
 
