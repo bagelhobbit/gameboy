@@ -58,7 +58,6 @@ fn main() {
     canvas.present();
 
     let mut event_pump = sdl_context.event_pump().unwrap();
-    // let mut old_scancodes: HashSet<Scancode> = HashSet::new();
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -72,6 +71,7 @@ fn main() {
                     keycode: Some(Keycode::F12),
                     ..
                 } => {
+                    eprintln!("Enabling debug log");
                     cpu.debug = true;
                     memory.debug = true;
                 }
@@ -242,8 +242,6 @@ fn main() {
 
             memory.frame_happened = false;
         }
-
-        // old_scancodes = pressed_scancode_set(&event_pump);
 
         canvas.present();
     }

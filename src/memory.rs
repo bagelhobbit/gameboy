@@ -1,4 +1,5 @@
 use crate::{
+    cpu::CpuBus,
     sprite_attribute::SpriteAttribute,
     tile_info::{TileInfo, TileType},
 };
@@ -549,6 +550,16 @@ impl Memory {
         if pressed_keys.contains(&Keycode::S) {
             self.joypad.a_pressed = true;
         }
+    }
+}
+
+impl CpuBus for Memory {
+    fn read(&mut self, address: u16) -> u8 {
+        self.read(address)
+    }
+
+    fn write(&mut self, address: u16, val: u8) {
+        self.write(address, val)
     }
 }
 

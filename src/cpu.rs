@@ -1,9 +1,13 @@
 use crate::{
     alu_result::AluResult,
     instructions::{ConditionalFlag, DoubleRegister, Instruction, Register},
-    memory::Memory,
     util::*,
 };
+
+pub trait CpuBus {
+    fn read(&mut self, address: u16) -> u8;
+    fn write(&mut self, address: u16, val: u8);
+}
 
 mod cpu_tests;
 
@@ -22,8 +26,8 @@ pub struct Cpu {
     pub is_carry: bool,
     pub stack_pointer: u16,
     pub program_counter: u16,
-    booting: bool,
     halt: bool,
+    interrupts_enabled: bool,
     pub debug: bool,
 }
 
@@ -43,8 +47,8 @@ impl Cpu {
             is_carry: false,
             stack_pointer: 0xFFFE,
             program_counter: 0,
-            booting: true,
             halt: false,
+            interrupts_enabled: true,
             debug: false,
         }
     }
@@ -101,13 +105,8 @@ impl Cpu {
         self.is_carry = (byte & 0b001_0000) != 0;
     }
 
-    pub fn parse(&mut self, memory: &mut Memory) -> Instruction {
-        if self.booting && !memory.using_boot_rom() {
-            self.program_counter = 0x0100;
-            self.booting = false;
-        }
-
-        let instruction = memory.read(self.program_counter);
+    pub fn parse(&mut self, cpu_bus: &mut impl CpuBus) -> Instruction {
+        let instruction = cpu_bus.read(self.program_counter);
 
         match (get_upper_bits(instruction), get_lower_bits(instruction)) {
             (0x0, 0x0) => Instruction::Nop,
@@ -368,7 +367,7 @@ impl Cpu {
             (0xC, 0xA) => Instruction::JumpConditional {
                 flag: ConditionalFlag::Z,
             },
-            (0xC, 0xB) => self.parse_prefix(memory),
+            (0xC, 0xB) => self.parse_prefix(cpu_bus),
             (0xC, 0xC) => Instruction::CallConditional {
                 flag: ConditionalFlag::Z,
             },
@@ -527,8 +526,8 @@ impl Cpu {
         }
     }
 
-    fn parse_prefix(&mut self, memory: &mut Memory) -> Instruction {
-        let instruction = memory.read(self.program_counter + 1);
+    fn parse_prefix(&mut self, cpu_bus: &mut impl CpuBus) -> Instruction {
+        let instruction = cpu_bus.read(self.program_counter + 1);
 
         let registers = [
             Register::B,
@@ -778,7 +777,7 @@ impl Cpu {
         }
     }
 
-    pub fn execute(&mut self, instruction: Instruction, memory: &mut Memory) {
+    pub fn execute(&mut self, instruction: Instruction, cpu_bus: &mut impl CpuBus) {
         match instruction {
             Instruction::Invalid => todo!(),
             // 8-bit load instructions
@@ -806,7 +805,7 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::LoadReg8 { register } => {
-                let data = memory.read(self.program_counter + 1);
+                let data = cpu_bus.read(self.program_counter + 1);
 
                 match register {
                     Register::B => self.b = data,
@@ -821,7 +820,7 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::LoadRegHL { register } => {
-                let data = memory.read(self.hl());
+                let data = cpu_bus.read(self.hl());
 
                 match register {
                     Register::B => self.b = data,
@@ -839,97 +838,97 @@ impl Cpu {
                 let address = self.hl();
 
                 match register {
-                    Register::B => memory.write(address, self.b),
-                    Register::C => memory.write(address, self.c),
-                    Register::D => memory.write(address, self.d),
-                    Register::E => memory.write(address, self.e),
-                    Register::H => memory.write(address, self.h),
-                    Register::L => memory.write(address, self.l),
-                    Register::A => memory.write(address, self.a),
+                    Register::B => cpu_bus.write(address, self.b),
+                    Register::C => cpu_bus.write(address, self.c),
+                    Register::D => cpu_bus.write(address, self.d),
+                    Register::E => cpu_bus.write(address, self.e),
+                    Register::H => cpu_bus.write(address, self.h),
+                    Register::L => cpu_bus.write(address, self.l),
+                    Register::A => cpu_bus.write(address, self.a),
                 }
 
                 self.program_counter += 1;
             }
             Instruction::LoadHL8 => {
-                let data = memory.read(self.program_counter + 1);
-                memory.write(self.hl(), data);
+                let data = cpu_bus.read(self.program_counter + 1);
+                cpu_bus.write(self.hl(), data);
                 self.program_counter += 2;
             }
             Instruction::LoadABC => {
-                self.a = memory.read(self.bc());
+                self.a = cpu_bus.read(self.bc());
                 self.program_counter += 1;
             }
             Instruction::LoadADE => {
-                self.a = memory.read(self.de());
+                self.a = cpu_bus.read(self.de());
                 self.program_counter += 1;
             }
             Instruction::LoadAAddress => {
-                let low = memory.read(self.program_counter + 1);
-                let high = memory.read(self.program_counter + 2);
+                let low = cpu_bus.read(self.program_counter + 1);
+                let high = cpu_bus.read(self.program_counter + 2);
                 let address = combine_bytes(high, low);
 
-                self.a = memory.read(address);
+                self.a = cpu_bus.read(address);
                 self.program_counter += 3;
             }
             Instruction::LoadBCA => {
-                memory.write(self.bc(), self.a);
+                cpu_bus.write(self.bc(), self.a);
                 self.program_counter += 1;
             }
             Instruction::LoadDEA => {
-                memory.write(self.de(), self.a);
+                cpu_bus.write(self.de(), self.a);
                 self.program_counter += 1;
             }
             Instruction::LoadAddressA => {
-                let low = memory.read(self.program_counter + 1);
-                let high = memory.read(self.program_counter + 2);
+                let low = cpu_bus.read(self.program_counter + 1);
+                let high = cpu_bus.read(self.program_counter + 2);
                 let address = combine_bytes(high, low);
 
-                memory.write(address, self.a);
+                cpu_bus.write(address, self.a);
                 self.program_counter += 3;
             }
             Instruction::LoadAOffset => {
-                let offset = memory.read(self.program_counter + 1) as u16;
-                self.a = memory.read(0xFF00 + offset);
+                let offset = cpu_bus.read(self.program_counter + 1) as u16;
+                self.a = cpu_bus.read(0xFF00 + offset);
                 self.program_counter += 2;
             }
             Instruction::LoadOffsetA => {
-                let offset = memory.read(self.program_counter + 1) as u16;
-                memory.write(0xFF00 + offset, self.a);
+                let offset = cpu_bus.read(self.program_counter + 1) as u16;
+                cpu_bus.write(0xFF00 + offset, self.a);
                 self.program_counter += 2;
             }
             Instruction::LoadAOffsetC => {
-                self.a = memory.read(0xFF00 + self.c as u16);
+                self.a = cpu_bus.read(0xFF00 + self.c as u16);
                 self.program_counter += 1;
             }
             Instruction::LoadOffsetCA => {
-                memory.write(0xFF00 + self.c as u16, self.a);
+                cpu_bus.write(0xFF00 + self.c as u16, self.a);
                 self.program_counter += 1;
             }
             Instruction::LoadIncrementHLA => {
-                memory.write(self.hl(), self.a);
+                cpu_bus.write(self.hl(), self.a);
                 self.increment_hl();
                 self.program_counter += 1;
             }
             Instruction::LoadIncrementAHL => {
-                self.a = memory.read(self.hl());
+                self.a = cpu_bus.read(self.hl());
                 self.increment_hl();
                 self.program_counter += 1;
             }
             Instruction::LoadDecrementHLA => {
-                memory.write(self.hl(), self.a);
+                cpu_bus.write(self.hl(), self.a);
                 self.decrement_hl();
                 self.program_counter += 1;
             }
             Instruction::LoadDecrementAHL => {
-                self.a = memory.read(self.hl());
+                self.a = cpu_bus.read(self.hl());
                 self.decrement_hl();
                 self.program_counter += 1;
             }
 
             // 16-bit load instructions
             Instruction::LoadReg16 { register } => {
-                let lower = memory.read(self.program_counter + 1);
-                let upper = memory.read(self.program_counter + 2);
+                let lower = cpu_bus.read(self.program_counter + 1);
+                let upper = cpu_bus.read(self.program_counter + 2);
 
                 match register {
                     DoubleRegister::BC => {
@@ -953,12 +952,12 @@ impl Cpu {
                 self.program_counter += 3;
             }
             Instruction::LoadAddressSP => {
-                let low = memory.read(self.program_counter + 1);
-                let high = memory.read(self.program_counter + 2);
+                let low = cpu_bus.read(self.program_counter + 1);
+                let high = cpu_bus.read(self.program_counter + 2);
                 let address = combine_bytes(high, low);
 
-                memory.write(address, get_lower_byte(self.stack_pointer));
-                memory.write(address + 1, get_upper_byte(self.stack_pointer));
+                cpu_bus.write(address, get_lower_byte(self.stack_pointer));
+                cpu_bus.write(address + 1, get_upper_byte(self.stack_pointer));
                 self.program_counter += 3;
             }
             Instruction::LoadSPHL => {
@@ -970,20 +969,20 @@ impl Cpu {
 
                 match register {
                     DoubleRegister::BC => {
-                        memory.write(self.stack_pointer, self.c);
-                        memory.write(self.stack_pointer + 1, self.b);
+                        cpu_bus.write(self.stack_pointer, self.c);
+                        cpu_bus.write(self.stack_pointer + 1, self.b);
                     }
                     DoubleRegister::DE => {
-                        memory.write(self.stack_pointer, self.e);
-                        memory.write(self.stack_pointer + 1, self.d);
+                        cpu_bus.write(self.stack_pointer, self.e);
+                        cpu_bus.write(self.stack_pointer + 1, self.d);
                     }
                     DoubleRegister::HL => {
-                        memory.write(self.stack_pointer, self.l);
-                        memory.write(self.stack_pointer + 1, self.h);
+                        cpu_bus.write(self.stack_pointer, self.l);
+                        cpu_bus.write(self.stack_pointer + 1, self.h);
                     }
                     DoubleRegister::AF => {
-                        memory.write(self.stack_pointer, self.flags_to_byte());
-                        memory.write(self.stack_pointer + 1, self.a);
+                        cpu_bus.write(self.stack_pointer, self.flags_to_byte());
+                        cpu_bus.write(self.stack_pointer + 1, self.a);
                     }
                     _ => panic!("Invalid Instruction"),
                 }
@@ -991,8 +990,8 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::PopReg { register } => {
-                let lower = memory.read(self.stack_pointer);
-                let upper = memory.read(self.stack_pointer + 1);
+                let lower = cpu_bus.read(self.stack_pointer);
+                let upper = cpu_bus.read(self.stack_pointer + 1);
 
                 match register {
                     DoubleRegister::BC => {
@@ -1034,12 +1033,12 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::AddA => {
-                let value = memory.read(self.program_counter + 1);
+                let value = cpu_bus.read(self.program_counter + 1);
                 self.wrapped_addition(value);
                 self.program_counter += 2;
             }
             Instruction::AddAHL => {
-                let value = memory.read(self.hl());
+                let value = cpu_bus.read(self.hl());
                 self.wrapped_addition(value);
                 self.program_counter += 1;
             }
@@ -1058,12 +1057,12 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::AddCarryA => {
-                let value = memory.read(self.program_counter + 1);
+                let value = cpu_bus.read(self.program_counter + 1);
                 self.wrapped_addition_carry(value, self.is_carry);
                 self.program_counter += 2;
             }
             Instruction::AddCarryAHL => {
-                let value = memory.read(self.hl());
+                let value = cpu_bus.read(self.hl());
                 self.wrapped_addition_carry(value, self.is_carry);
                 self.program_counter += 1;
             }
@@ -1082,12 +1081,12 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::SubtractA => {
-                let value = memory.read(self.program_counter + 1);
+                let value = cpu_bus.read(self.program_counter + 1);
                 self.a = self.wrapped_subtraction(value);
                 self.program_counter += 2;
             }
             Instruction::SubtractAHL => {
-                let value = memory.read(self.hl());
+                let value = cpu_bus.read(self.hl());
                 self.a = self.wrapped_subtraction(value);
                 self.program_counter += 1;
             }
@@ -1106,12 +1105,12 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::SubtractACarry => {
-                let value = memory.read(self.program_counter + 1);
+                let value = cpu_bus.read(self.program_counter + 1);
                 self.a = self.wrapped_subtraction_carry(value, self.is_carry);
                 self.program_counter += 2;
             }
             Instruction::SubtractAHLCarry => {
-                let value = memory.read(self.hl());
+                let value = cpu_bus.read(self.hl());
                 self.a = self.wrapped_subtraction_carry(value, self.is_carry);
                 self.program_counter += 1;
             }
@@ -1136,7 +1135,7 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::AndA => {
-                let value = memory.read(self.program_counter + 1);
+                let value = cpu_bus.read(self.program_counter + 1);
 
                 self.a &= value;
 
@@ -1148,7 +1147,7 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::AndAHL => {
-                let value = memory.read(self.hl());
+                let value = cpu_bus.read(self.hl());
 
                 self.a &= value;
 
@@ -1180,7 +1179,7 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::XorA => {
-                let value = memory.read(self.program_counter + 1);
+                let value = cpu_bus.read(self.program_counter + 1);
 
                 self.a ^= value;
 
@@ -1192,7 +1191,7 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::XorAHL => {
-                let value = memory.read(self.hl());
+                let value = cpu_bus.read(self.hl());
 
                 self.a ^= value;
 
@@ -1224,7 +1223,7 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::OrA => {
-                let value = memory.read(self.program_counter + 1);
+                let value = cpu_bus.read(self.program_counter + 1);
 
                 self.a |= value;
 
@@ -1236,7 +1235,7 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::OrAHL => {
-                let value = memory.read(self.hl());
+                let value = cpu_bus.read(self.hl());
 
                 self.a |= value;
 
@@ -1262,12 +1261,12 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::CompareA => {
-                let value = memory.read(self.program_counter + 1);
+                let value = cpu_bus.read(self.program_counter + 1);
                 _ = self.wrapped_subtraction(value);
                 self.program_counter += 2;
             }
             Instruction::CompareAHL => {
-                let value = memory.read(self.hl());
+                let value = cpu_bus.read(self.hl());
                 _ = self.wrapped_subtraction(value);
                 self.program_counter += 1;
             }
@@ -1317,14 +1316,14 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::IncrementHL => {
-                let data = memory.read(self.hl());
+                let data = cpu_bus.read(self.hl());
                 let alu = AluResult::from_add(data, 1);
 
                 self.is_zero = alu.result == 0;
                 self.is_subtraction = false;
                 self.is_half_carry = alu.half_carry;
 
-                memory.write(self.hl(), alu.result);
+                cpu_bus.write(self.hl(), alu.result);
                 self.program_counter += 1;
             }
             Instruction::DecrementReg { register } => {
@@ -1373,14 +1372,14 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::DecrementHL => {
-                let data = memory.read(self.hl());
+                let data = cpu_bus.read(self.hl());
                 let alu = AluResult::from_sub(data, 1);
 
                 self.is_zero = alu.result == 0;
                 self.is_subtraction = true;
                 self.is_half_carry = alu.half_carry;
 
-                memory.write(self.hl(), alu.result);
+                cpu_bus.write(self.hl(), alu.result);
                 self.program_counter += 1;
             }
             Instruction::DecimalAdjustA => {
@@ -1505,7 +1504,7 @@ impl Cpu {
                 self.program_counter += 1;
             }
             Instruction::AddSPOffset => {
-                let offset = memory.read(self.program_counter + 1);
+                let offset = cpu_bus.read(self.program_counter + 1);
 
                 self.is_zero = false;
                 self.is_subtraction = false;
@@ -1519,7 +1518,7 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::LoadHLSPOffset => {
-                let offset = memory.read(self.program_counter + 1);
+                let offset = cpu_bus.read(self.program_counter + 1);
 
                 self.is_zero = false;
                 self.is_subtraction = false;
@@ -1610,9 +1609,9 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::RotateHLLeft => {
-                let data = memory.read(self.hl());
+                let data = cpu_bus.read(self.hl());
                 let result = self.rotate_left(data);
-                memory.write(self.hl(), result);
+                cpu_bus.write(self.hl(), result);
 
                 self.is_zero = result == 0;
                 self.is_subtraction = false;
@@ -1658,9 +1657,9 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::RotateHLLeftThroughCarry => {
-                let data = memory.read(self.hl());
+                let data = cpu_bus.read(self.hl());
                 let result = self.rotate_left_through_carry(data);
-                memory.write(self.hl(), result);
+                cpu_bus.write(self.hl(), result);
 
                 self.is_zero = result == 0;
                 self.is_subtraction = false;
@@ -1706,9 +1705,9 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::RotateHLRight => {
-                let data = memory.read(self.hl());
+                let data = cpu_bus.read(self.hl());
                 let result = self.rotate_right(data);
-                memory.write(self.hl(), result);
+                cpu_bus.write(self.hl(), result);
 
                 self.is_zero = result == 0;
                 self.is_subtraction = false;
@@ -1754,9 +1753,9 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::RotateHLRightThroughCarry => {
-                let data = memory.read(self.hl());
+                let data = cpu_bus.read(self.hl());
                 let result = self.rotate_right_through_carry(data);
-                memory.write(self.hl(), result);
+                cpu_bus.write(self.hl(), result);
 
                 self.is_zero = result == 0;
                 self.is_subtraction = false;
@@ -1795,8 +1794,8 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::ShiftHLLeftArithmetic => {
-                let data = memory.read(self.hl());
-                memory.write(self.hl(), self.shift_left(data));
+                let data = cpu_bus.read(self.hl());
+                cpu_bus.write(self.hl(), self.shift_left(data));
 
                 self.is_subtraction = false;
                 self.is_half_carry = false;
@@ -1834,8 +1833,8 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::SwapHL => {
-                let data = memory.read(self.hl());
-                memory.write(self.hl(), self.swap(data));
+                let data = cpu_bus.read(self.hl());
+                cpu_bus.write(self.hl(), self.swap(data));
 
                 self.is_subtraction = false;
                 self.is_half_carry = false;
@@ -1859,8 +1858,8 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::ShiftHLRightArithmetic => {
-                let data = memory.read(self.hl());
-                memory.write(self.hl(), self.shift_right_arithmetic(data));
+                let data = cpu_bus.read(self.hl());
+                cpu_bus.write(self.hl(), self.shift_right_arithmetic(data));
 
                 self.is_subtraction = false;
                 self.is_half_carry = false;
@@ -1884,8 +1883,8 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::ShiftHLRightLogical => {
-                let data = memory.read(self.hl());
-                memory.write(self.hl(), self.shift_right_logical(data));
+                let data = cpu_bus.read(self.hl());
+                cpu_bus.write(self.hl(), self.shift_right_logical(data));
 
                 self.is_subtraction = false;
                 self.is_half_carry = false;
@@ -1910,7 +1909,7 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::TestHLBit { bit } => {
-                let data = memory.read(self.hl());
+                let data = cpu_bus.read(self.hl());
                 self.test_bit(bit, data);
 
                 self.is_subtraction = false;
@@ -1931,8 +1930,8 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::SetHLBit { bit } => {
-                let data = memory.read(self.hl());
-                memory.write(self.hl(), self.set_bit(bit, data));
+                let data = cpu_bus.read(self.hl());
+                cpu_bus.write(self.hl(), self.set_bit(bit, data));
 
                 self.program_counter += 2;
             }
@@ -1950,8 +1949,8 @@ impl Cpu {
                 self.program_counter += 2;
             }
             Instruction::ResetHLBit { bit } => {
-                let data = memory.read(self.hl());
-                memory.write(self.hl(), self.reset_bit(bit, data));
+                let data = cpu_bus.read(self.hl());
+                cpu_bus.write(self.hl(), self.reset_bit(bit, data));
 
                 self.program_counter += 2;
             }
@@ -1977,26 +1976,26 @@ impl Cpu {
             }
             Instruction::Stop => todo!(),
             Instruction::DisableInterrupts => {
-                memory.interrupts_enabled = false;
+                self.interrupts_enabled = false;
                 self.program_counter += 1;
             }
             Instruction::EnableInterrupts => {
-                memory.interrupts_enabled = true;
+                self.interrupts_enabled = true;
                 self.program_counter += 1;
             }
 
             // Jump instructions
             Instruction::Jump => {
-                let low = memory.read(self.program_counter + 1);
-                let high = memory.read(self.program_counter + 2);
+                let low = cpu_bus.read(self.program_counter + 1);
+                let high = cpu_bus.read(self.program_counter + 2);
                 self.program_counter = combine_bytes(high, low);
             }
             Instruction::JumpHL => {
                 self.program_counter = self.hl();
             }
             Instruction::JumpConditional { flag } => {
-                let low = memory.read(self.program_counter + 1);
-                let high = memory.read(self.program_counter + 2);
+                let low = cpu_bus.read(self.program_counter + 1);
+                let high = cpu_bus.read(self.program_counter + 2);
 
                 let predicate = match flag {
                     ConditionalFlag::NZ => !self.is_zero,
@@ -2012,7 +2011,7 @@ impl Cpu {
                 }
             }
             Instruction::JumpRelative => {
-                let offset = memory.read(self.program_counter + 1) as i8;
+                let offset = cpu_bus.read(self.program_counter + 1) as i8;
 
                 self.program_counter += 2;
 
@@ -2023,7 +2022,7 @@ impl Cpu {
                 }
             }
             Instruction::JumpRelativeConditional { flag } => {
-                let offset = memory.read(self.program_counter + 1) as i8;
+                let offset = cpu_bus.read(self.program_counter + 1) as i8;
 
                 let predicate = match flag {
                     ConditionalFlag::NZ => !self.is_zero,
@@ -2043,15 +2042,15 @@ impl Cpu {
                 }
             }
             Instruction::Call => {
-                let low = memory.read(self.program_counter + 1);
-                let high = memory.read(self.program_counter + 2);
+                let low = cpu_bus.read(self.program_counter + 1);
+                let high = cpu_bus.read(self.program_counter + 2);
 
                 self.program_counter += 3;
-                self.call_address(memory, combine_bytes(high, low));
+                self.call_address(cpu_bus, combine_bytes(high, low));
             }
             Instruction::CallConditional { flag } => {
-                let low = memory.read(self.program_counter + 1);
-                let high = memory.read(self.program_counter + 2);
+                let low = cpu_bus.read(self.program_counter + 1);
+                let high = cpu_bus.read(self.program_counter + 2);
 
                 let predicate = match flag {
                     ConditionalFlag::NZ => !self.is_zero,
@@ -2063,12 +2062,12 @@ impl Cpu {
                 self.program_counter += 3;
 
                 if predicate {
-                    self.call_address(memory, combine_bytes(high, low));
+                    self.call_address(cpu_bus, combine_bytes(high, low));
                 }
             }
             Instruction::Return => {
-                let low = memory.read(self.stack_pointer);
-                let high = memory.read(self.stack_pointer + 1);
+                let low = cpu_bus.read(self.stack_pointer);
+                let high = cpu_bus.read(self.stack_pointer + 1);
                 self.program_counter = combine_bytes(high, low);
                 self.stack_pointer += 2;
             }
@@ -2081,8 +2080,8 @@ impl Cpu {
                 };
 
                 if predicate {
-                    let low = memory.read(self.stack_pointer);
-                    let high = memory.read(self.stack_pointer + 1);
+                    let low = cpu_bus.read(self.stack_pointer);
+                    let high = cpu_bus.read(self.stack_pointer + 1);
                     self.program_counter = combine_bytes(high, low);
                     self.stack_pointer += 2;
                 } else {
@@ -2090,96 +2089,96 @@ impl Cpu {
                 }
             }
             Instruction::ReturnAndEnableInterrupts => {
-                let low = memory.read(self.stack_pointer);
-                let high = memory.read(self.stack_pointer + 1);
-                memory.interrupts_enabled = true;
+                let low = cpu_bus.read(self.stack_pointer);
+                let high = cpu_bus.read(self.stack_pointer + 1);
+                self.interrupts_enabled = true;
                 self.program_counter = combine_bytes(high, low);
                 self.stack_pointer += 2;
             }
             Instruction::Reset0 { location } => {
                 self.program_counter += 1;
-                self.call_address(memory, ((location % 4) * 0x10) as u16);
+                self.call_address(cpu_bus, ((location % 4) * 0x10) as u16);
             }
             Instruction::Reset8 { location } => {
                 self.program_counter += 1;
-                self.call_address(memory, (((location % 4) * 0x10) + 0x8) as u16)
+                self.call_address(cpu_bus, (((location % 4) * 0x10) + 0x8) as u16)
             }
         }
 
-        self.check_interrupts(instruction, memory);
+        self.check_interrupts(instruction, cpu_bus);
     }
 
     /// If interrutps are enabled, check if any interrupts are requested and if so call the interrupt handler
-    fn check_interrupts(&mut self, instruction: Instruction, memory: &mut Memory) {
-        if instruction != Instruction::EnableInterrupts && memory.interrupts_enabled {
+    fn check_interrupts(&mut self, instruction: Instruction, cpu_bus: &mut impl CpuBus) {
+        if instruction != Instruction::EnableInterrupts && self.interrupts_enabled {
             // mask the relevant flag bits just in case
-            let requested_interrupt_flags = memory.io_registers[0x0F] & 0x1F;
-            let enabled_interrupt_flags = memory.enabled_interupts & 0x1F;
+            let requested_interrupt_flags = cpu_bus.read(0xFF0F) & 0x1F;
+            let enabled_interrupt_flags = cpu_bus.read(0xFFFF) & 0x1F;
 
             //TODO: interrupts should take 5 M-cycles, but this should ony take 2
 
             // we only want to process interrupts that are both requested and enabled
             if requested_interrupt_flags & enabled_interrupt_flags > 0 {
                 let interrupt_flags = get_as_bits(requested_interrupt_flags);
-                memory.interrupts_enabled = false;
+                self.interrupts_enabled = false;
                 // process interrupts in order of priority and clear the IF bit of the processed interrupt
                 if interrupt_flags[7] == 1 {
                     // VBlank
-                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFE;
-                    self.call_address(memory, 0x40);
+                    cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xFE);
+                    self.call_address(cpu_bus, 0x40);
                 } else if interrupt_flags[6] == 1 {
                     // LCD STAT
-                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFD;
-                    self.call_address(memory, 0x48);
+                    cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xFD);
+                    self.call_address(cpu_bus, 0x48);
                 } else if interrupt_flags[5] == 1 {
                     // Timer
-                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFB;
-                    self.call_address(memory, 0x50);
+                    cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xFB);
+                    self.call_address(cpu_bus, 0x50);
                 } else if interrupt_flags[4] == 1 {
                     // Serial
-                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xF7;
-                    self.call_address(memory, 0x58);
+                    cpu_bus.write(0xFF0f, requested_interrupt_flags & 0xF7);
+                    self.call_address(cpu_bus, 0x58);
                 } else if interrupt_flags[3] == 1 {
                     // Joypad
-                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xEF;
-                    self.call_address(memory, 0x60);
+                    cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xEF);
+                    self.call_address(cpu_bus, 0x60);
                 }
             }
         } else if self.halt {
             // mask the relevant flag bits just in case
-            let requested_interrupt_flags = memory.io_registers[0x0F] & 0x1F;
-            let enabled_interrupt_flags = memory.enabled_interupts & 0x1F;
+            let requested_interrupt_flags = cpu_bus.read(0xFF0F) & 0x1F;
+            let enabled_interrupt_flags = cpu_bus.read(0xFFFF) & 0x1F;
 
             //TODO: interrupts should take 5 M-cycles, but this should ony take 2
 
             // we only want to process interrupts that are both requested and enabled
             if requested_interrupt_flags & enabled_interrupt_flags > 0 {
                 let interrupt_flags = get_as_bits(requested_interrupt_flags);
-                memory.interrupts_enabled = false;
+                self.interrupts_enabled = false;
                 // process interrupts in order of priority and clear the IF bit of the processed interrupt
                 if interrupt_flags[7] == 1 {
                     // VBlank
-                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFE;
+                    cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xFE);
                     self.halt = false;
                     self.program_counter += 1;
                 } else if interrupt_flags[6] == 1 {
                     // LCD STAT
-                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFD;
+                    cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xFD);
                     self.halt = false;
                     self.program_counter += 1;
                 } else if interrupt_flags[5] == 1 {
                     // Timer
-                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xFB;
+                    cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xFB);
                     self.halt = false;
                     self.program_counter += 1;
                 } else if interrupt_flags[4] == 1 {
                     // Serial
-                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xF7;
+                    cpu_bus.write(0xFF0f, requested_interrupt_flags & 0xF7);
                     self.halt = false;
                     self.program_counter += 1;
                 } else if interrupt_flags[3] == 1 {
                     // Joypad
-                    memory.io_registers[0x0F] = requested_interrupt_flags & 0xEF;
+                    cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xEF);
                     self.halt = false;
                     self.program_counter += 1;
                 }
@@ -2362,10 +2361,10 @@ impl Cpu {
     }
 
     /// Push the PC onto the stack, then set the PC to the given address
-    fn call_address(&mut self, memory: &mut Memory, address: u16) {
+    fn call_address(&mut self, cpu_bus: &mut impl CpuBus, address: u16) {
         self.stack_pointer -= 2;
-        memory.write(self.stack_pointer, get_lower_byte(self.program_counter));
-        memory.write(self.stack_pointer + 1, get_upper_byte(self.program_counter));
+        cpu_bus.write(self.stack_pointer, get_lower_byte(self.program_counter));
+        cpu_bus.write(self.stack_pointer + 1, get_upper_byte(self.program_counter));
         self.program_counter = address;
     }
 }

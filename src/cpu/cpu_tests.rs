@@ -1811,10 +1811,10 @@ fn test_di() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    memory.interrupts_enabled = true;
+    cpu.interrupts_enabled = true;
     cpu.execute(Instruction::DisableInterrupts, &mut memory);
 
-    assert_eq!(memory.interrupts_enabled, false);
+    assert_eq!(cpu.interrupts_enabled, false);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -1823,10 +1823,10 @@ fn test_ei() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    memory.interrupts_enabled = false;
+    cpu.interrupts_enabled = false;
     cpu.execute(Instruction::EnableInterrupts, &mut memory);
 
-    assert_eq!(memory.interrupts_enabled, true);
+    assert_eq!(cpu.interrupts_enabled, true);
     assert_eq!(cpu.program_counter, 1);
 }
 
@@ -1995,13 +1995,13 @@ fn test_reti() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
 
-    memory.interrupts_enabled = false;
+    cpu.interrupts_enabled = false;
     memory.write(0xFFFC, 0x00);
     memory.write(0xFFFD, 0x11);
     cpu.stack_pointer -= 2;
     cpu.execute(Instruction::ReturnAndEnableInterrupts, &mut memory);
 
-    assert_eq!(memory.interrupts_enabled, true);
+    assert_eq!(cpu.interrupts_enabled, true);
     assert_eq!(cpu.stack_pointer, 0xFFFE);
     assert_eq!(cpu.program_counter, 0x1100);
 }
