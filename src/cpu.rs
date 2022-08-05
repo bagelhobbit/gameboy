@@ -4,12 +4,14 @@ use crate::{
     util::*,
 };
 
+mod cpu_test_crc;
+mod cpu_tests;
+mod crc_fast;
+
 pub trait CpuBus {
     fn read(&mut self, address: u16) -> u8;
     fn write(&mut self, address: u16, val: u8);
 }
-
-mod cpu_tests;
 
 #[derive(Debug)]
 pub struct Cpu {
@@ -2136,7 +2138,7 @@ impl Cpu {
                     self.call_address(cpu_bus, 0x50);
                 } else if interrupt_flags[4] == 1 {
                     // Serial
-                    cpu_bus.write(0xFF0f, requested_interrupt_flags & 0xF7);
+                    cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xF7);
                     self.call_address(cpu_bus, 0x58);
                 } else if interrupt_flags[3] == 1 {
                     // Joypad
@@ -2173,7 +2175,7 @@ impl Cpu {
                     self.program_counter += 1;
                 } else if interrupt_flags[4] == 1 {
                     // Serial
-                    cpu_bus.write(0xFF0f, requested_interrupt_flags & 0xF7);
+                    cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xF7);
                     self.halt = false;
                     self.program_counter += 1;
                 } else if interrupt_flags[3] == 1 {
