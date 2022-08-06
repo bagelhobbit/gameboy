@@ -98,7 +98,12 @@ fn cpu_instr_05_op_rp() {
 
         test_instr(&mut crc, &mut cpu, instr);
 
-        assert_eq!(*expected, crc.val(), "Instruction 0x{:0>2x} failed", instr[0]);
+        assert_eq!(
+            *expected,
+            crc.val(),
+            "Instruction 0x{:0>2x} failed",
+            instr[0]
+        );
     }
 
     fn test_instr(crc: &mut CrcFast, cpu: &mut impl CpuHarness, code: &[u8; 3]) {

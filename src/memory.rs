@@ -1,5 +1,6 @@
 use crate::{
     cpu::CpuBus,
+    joypad::{ButtonType, Joypad},
     sprite_attribute::SpriteAttribute,
     tile_info::{TileInfo, TileType},
 };
@@ -10,42 +11,6 @@ use std::collections::HashSet;
 enum CartridgeType {
     Rom,
     Mbc1,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum ButtonType {
-    None,
-    Action,
-    Direction,
-}
-
-#[derive(Debug)]
-struct Joypad {
-    selected_buttons: ButtonType,
-    down_pressed: bool,
-    up_pressed: bool,
-    left_pressed: bool,
-    right_pressed: bool,
-    start_pressed: bool,
-    select_pressed: bool,
-    b_pressed: bool,
-    a_pressed: bool,
-}
-
-impl Joypad {
-    pub fn new(selected_buttons: ButtonType) -> Joypad {
-        Joypad {
-            selected_buttons,
-            down_pressed: false,
-            up_pressed: false,
-            left_pressed: false,
-            right_pressed: false,
-            start_pressed: false,
-            select_pressed: false,
-            b_pressed: false,
-            a_pressed: false,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -128,7 +93,7 @@ impl Memory {
             max_ram_bank: 0,
             time: 0,
             frame_happened: false,
-            joypad: Joypad::new(ButtonType::None),
+            joypad: Joypad::default(),
             divider_register: 0,
             timer_counter: 0,
             timer_modulo: 0,
@@ -250,29 +215,7 @@ impl Memory {
             0
         } else if address <= 0xFF7F {
             match address {
-                0xFF00 => match self.joypad.selected_buttons {
-                    ButtonType::Action => {
-                        let binary_string = format!(
-                            "1101{}{}{}{}",
-                            (!self.joypad.start_pressed) as u8,
-                            (!self.joypad.select_pressed) as u8,
-                            (!self.joypad.b_pressed) as u8,
-                            (!self.joypad.a_pressed) as u8
-                        );
-                        u8::from_str_radix(&binary_string, 2).unwrap()
-                    }
-                    ButtonType::Direction => {
-                        let binary_string = format!(
-                            "1110{}{}{}{}",
-                            (!self.joypad.down_pressed) as u8,
-                            (!self.joypad.up_pressed) as u8,
-                            (!self.joypad.left_pressed) as u8,
-                            (!self.joypad.right_pressed) as u8
-                        );
-                        u8::from_str_radix(&binary_string, 2).unwrap()
-                    }
-                    ButtonType::None => 0xFF,
-                },
+                0xFF00 => self.joypad.as_byte(),
                 0xFF04 => {
                     // GB freq  4.194304 MHz
                     // DIV freq 16384 Hz
@@ -517,39 +460,7 @@ impl Memory {
     }
 
     pub fn set_joypad_inputs(&mut self, pressed_keys: HashSet<Keycode>) {
-        self.joypad = Joypad::new(self.joypad.selected_buttons);
-
-        if pressed_keys.contains(&Keycode::Down) {
-            self.joypad.down_pressed = true;
-        }
-
-        if pressed_keys.contains(&Keycode::Up) {
-            self.joypad.up_pressed = true;
-        }
-
-        if pressed_keys.contains(&Keycode::Left) {
-            self.joypad.left_pressed = true;
-        }
-
-        if pressed_keys.contains(&Keycode::Right) {
-            self.joypad.right_pressed = true;
-        }
-
-        if pressed_keys.contains(&Keycode::Return) {
-            self.joypad.start_pressed = true;
-        }
-
-        if pressed_keys.contains(&Keycode::RShift) || pressed_keys.contains(&Keycode::LShift) {
-            self.joypad.select_pressed = true;
-        }
-
-        if pressed_keys.contains(&Keycode::A) {
-            self.joypad.b_pressed = true;
-        }
-
-        if pressed_keys.contains(&Keycode::S) {
-            self.joypad.a_pressed = true;
-        }
+        self.joypad.set_inputs(pressed_keys);
     }
 }
 
