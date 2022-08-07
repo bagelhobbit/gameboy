@@ -18,18 +18,15 @@ pub struct Memory {
     boot_rom: [u8; 0x100],
     use_boot_rom: bool,
     /// 16 KiB ROM Bank 00
-    /// * From cartridge, usually a fixed bank
     /// * Addressed from `0x0000` to `0x3FFF`
     pub rom: [u8; 0x4000],
     ////16 KiB ROM Bank 01 ~ NN
-    /// * From cartridge, switchable bank via mapper (if any)
     /// * Addressed from `0x4000` to `0x7FFF`
     switchable_rom: Vec<[u8; 0x4000]>,
     /// 8 KiB Video RAM (VRAM)
     /// * Addressed from `0x8000` to `0x9FFF`
     pub vram: [u8; 0x2000],
     /// 8 KiB External RAM
-    /// * From cartridge, switchable bank if any
     /// * Addressed from `0xA000` to `0xBFFF`
     pub switchable_ram: Vec<[u8; 0x2000]>,
     /// 8 KiB Work RAM (WRAM)

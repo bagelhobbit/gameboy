@@ -19,6 +19,7 @@ name = "gameboy"
 version = "0.1.0"
 dependencies = [
  "sdl2",
+ "smolder-tests",
 ]
 
 [[package]]
@@ -55,6 +56,12 @@ dependencies = [
  "libc",
  "version-compare",
 ]
+
+[[package]]
+name = "smolder-tests"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8afb48932026b50c02162637b989894015dd3e51f8629ec8929f758440b1ca98"
 
 [[package]]
 name = "version-compare"

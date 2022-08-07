@@ -4,16 +4,15 @@ use crate::{
     util::*,
 };
 
-mod cpu_test_crc;
+mod cpu_test_cpu_instrs;
 mod cpu_tests;
-mod crc_fast;
 
 pub trait CpuBus {
     fn read(&mut self, address: u16) -> u8;
     fn write(&mut self, address: u16, val: u8);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Cpu {
     pub b: u8,
     pub c: u8,
