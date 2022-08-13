@@ -1,16 +1,8 @@
-use crate::{cpu::Cpu, instructions::Instruction, memory::Memory, tile_info::TileType};
+use gameboy::{
+    cpu::Cpu, instructions::Instruction, memory::Memory, tile_info::TileType, util::get_as_bits,
+};
 use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
 use std::{collections::HashSet, env, fs};
-use util::get_as_bits;
-
-mod alu_result;
-mod cpu;
-mod instructions;
-mod joypad;
-mod memory;
-mod sprite_attribute;
-mod tile_info;
-mod util;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

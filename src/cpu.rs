@@ -4,7 +4,6 @@ use crate::{
     util::*,
 };
 
-mod cpu_test_cpu_instrs;
 mod cpu_tests;
 
 pub trait CpuBus {
@@ -28,7 +27,7 @@ pub struct Cpu {
     pub stack_pointer: u16,
     pub program_counter: u16,
     halt: bool,
-    interrupts_enabled: bool,
+    pub interrupts_enabled: bool,
     pub debug: bool,
 }
 
@@ -99,7 +98,7 @@ impl Cpu {
         u8::from_str_radix(&binary_string, 2).unwrap()
     }
 
-    fn byte_to_flags(&mut self, byte: u8) {
+    pub fn byte_to_flags(&mut self, byte: u8) {
         self.is_zero = (byte & 0b1000_0000) != 0;
         self.is_subtraction = (byte & 0b0100_0000) != 0;
         self.is_half_carry = (byte & 0b0010_0000) != 0;
