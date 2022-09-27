@@ -1,7 +1,6 @@
 use crate::util::get_as_bits;
 use std::fmt;
 
-#[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum TileType {
     Background,
@@ -82,7 +81,7 @@ mod tests {
         //
         // tile[0] = 0x3C; //0b0011_1100
         // tile[0] = 0x7E; //0b0111_1110
-        //  result => 0b00, 0b10, 0b11, 0b11, 0b11, 0b11, 0b10, 0b00
+        // result => 0b00, 0b10, 0b11, 0b11, 0b11, 0b11, 0b10, 0b00
 
         let colors = get_basic_tile_info().get_color_ids_from_tile();
 

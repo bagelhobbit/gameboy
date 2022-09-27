@@ -3,6 +3,7 @@ pub mod cpu;
 pub mod instructions;
 pub mod joypad;
 pub mod memory;
+pub mod ppu;
 pub mod sprite_attribute;
 pub mod tile_info;
 pub mod util;

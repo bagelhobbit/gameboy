@@ -1,5 +1,5 @@
 use gameboy::cpu::{Cpu, CpuBus};
-use smolder_tests::gb::{cpu_instrs, CpuReg8, CpuTestHarness, CpuReg16, mem::Mem};
+use smolder_tests::gb::{cpu_instrs, mem::Mem, CpuReg16, CpuReg8, CpuTestHarness};
 
 #[test]
 fn cpu_insts() {

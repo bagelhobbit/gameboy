@@ -1,7 +1,16 @@
 use gameboy::{
-    cpu::Cpu, instructions::Instruction, memory::Memory, tile_info::TileType, util::get_as_bits,
+    cpu::Cpu,
+    instructions::Instruction,
+    memory::Memory,
+    ppu::{ColorRects, Ppu},
+    util::get_as_bits, tile_info::TileType,
 };
-use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
+use sdl2::{
+    event::{Event, WindowEvent},
+    keyboard::Keycode,
+    pixels::Color,
+    rect::Rect,
+};
 use std::{collections::HashSet, env, fs};
 
 fn main() {
@@ -37,6 +46,11 @@ fn main() {
     let (width, height) = window.size();
     let pixel_width = width / 160;
     let pixel_height = height / 144;
+
+    let ppu = Ppu {
+        pixel_width,
+        pixel_height,
+    };
 
     let color0 = Color::RGB(0xE0, 0xF8, 0xD0);
     let color1 = Color::RGB(0x88, 0xC0, 0x70);
@@ -94,13 +108,8 @@ fn main() {
             canvas.clear();
             let tilemap = memory.read_bg_tile_map();
 
-            let mut color0_rects = Vec::new();
-            let mut color1_rects = Vec::new();
-            let mut color2_rects = Vec::new();
-            let mut color3_rects = Vec::new();
-            let mut transparent_rects = Vec::new();
+            let mut color_rects = ColorRects::default();
 
-            let mut palette: u8;
             let palette_bits = get_as_bits(memory.io_registers[0x47]);
 
             let color_values = [
@@ -110,49 +119,12 @@ fn main() {
                 (palette_bits[0] << 1) + palette_bits[1],
             ];
 
-            // background is 18 tiles tall and 20 tiles wide
-            // render an extra tile on all sides to enable partially rendering tiles from offscreen
-            for y in 0..20 {
-                for x in 0..22 {
-                    let tile = memory.vram_read_tile(
-                        TileType::Background,
-                        tilemap[((memory.scy as usize / 8) + y) % 32]
-                            [((memory.scx as usize / 8) + x) % 32],
-                    );
-
-                    let x_pos = x as i32 * 8;
-                    let y_pos = y as i32 * 8;
-
-                    let x_offset = memory.scx as i32 % 8;
-                    let y_offset = memory.scy as i32 % 8;
-
-                    let colors = tile.get_color_ids_from_tile();
-
-                    for row in 0..colors.len() {
-                        for col in 0..colors[0].len() {
-                            let rect = Rect::new(
-                                (x_pos + col as i32 - x_offset) * pixel_width as i32,
-                                (y_pos + row as i32 - y_offset) * pixel_height as i32,
-                                pixel_width,
-                                pixel_height,
-                            );
-
-                            palette = color_values[colors[row][col] as usize];
-
-                            if palette == 0 {
-                                color0_rects.push(rect);
-                            } else if palette == 1 {
-                                color1_rects.push(rect);
-                            } else if palette == 2 {
-                                color2_rects.push(rect);
-                            } else {
-                                color3_rects.push(rect);
-                            }
-                        }
-                    }
-                }
+            // render an extra tile's worth of pixels to enable partially rendering tiles from offscreen
+            for y in 0..(144 + 8) {
+                ppu.render_scanline(&memory, y, &tilemap, &color_values, &mut color_rects);
             }
 
+            let mut palette: u8;
             for sprite in memory.read_oam() {
                 if sprite.y == 0 || (memory.io_registers[0x40] & 0b0000_0100 == 0 && sprite.y <= 8)
                 {
@@ -206,32 +178,32 @@ fn main() {
                         palette = color_values[colors[row][col] as usize];
 
                         if palette == 0 {
-                            transparent_rects.push(rect);
+                            color_rects.transparent_rects.push(rect);
                         } else if palette == 1 {
-                            color1_rects.push(rect);
+                            color_rects.color1_rects.push(rect);
                         } else if palette == 2 {
-                            color2_rects.push(rect);
+                            color_rects.color2_rects.push(rect);
                         } else {
-                            color3_rects.push(rect);
+                            color_rects.color3_rects.push(rect);
                         }
                     }
                 }
             }
 
             canvas.set_draw_color(color0);
-            canvas.fill_rects(&color0_rects).unwrap();
+            canvas.fill_rects(&color_rects.color0_rects).unwrap();
 
             canvas.set_draw_color(color1);
-            canvas.fill_rects(&color1_rects).unwrap();
+            canvas.fill_rects(&color_rects.color1_rects).unwrap();
 
             canvas.set_draw_color(color2);
-            canvas.fill_rects(&color2_rects).unwrap();
+            canvas.fill_rects(&color_rects.color2_rects).unwrap();
 
             canvas.set_draw_color(color3);
-            canvas.fill_rects(&color3_rects).unwrap();
+            canvas.fill_rects(&color_rects.color3_rects).unwrap();
 
             canvas.set_draw_color(color_transparent);
-            canvas.fill_rects(&transparent_rects).unwrap();
+            canvas.fill_rects(&color_rects.transparent_rects).unwrap();
 
             memory.frame_happened = false;
         }

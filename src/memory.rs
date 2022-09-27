@@ -382,7 +382,7 @@ impl Memory {
         }
     }
 
-    pub fn vram_read_tile(&mut self, tile_type: TileType, index: u8) -> TileInfo {
+    pub fn vram_read_tile(&self, tile_type: TileType, index: u8) -> TileInfo {
         //get LCDC bit 4 to toggle indexing modes (from IO registers)
         // TODO: better way to do this...
         let lcdc4 = self.io_registers[0x40] & 0b0001_0000 == 0b0001_0000;
@@ -468,6 +468,12 @@ impl CpuBus for Memory {
 
     fn write(&mut self, address: u16, val: u8) {
         self.write(address, val)
+    }
+}
+
+impl Default for Memory {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
