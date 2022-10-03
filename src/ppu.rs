@@ -37,15 +37,47 @@ impl Ppu {
             );
 
             let x_pos = x as i32 * 8;
-
             let x_offset = memory.scx as i32 % 8;
-            let y_offset = memory.scy as i32 % 8;
 
             self.get_rects_for_tile(
                 tile,
                 x_pos + x_offset,
                 y as i32,
-                y_offset,
+                memory.scy as i32 % 8,
+                color_values,
+                color_rects,
+            );
+        }
+    }
+
+    pub fn render_window_scanline(
+        &self,
+        memory: &Memory,
+        y: usize,
+        tilemap: &[[u8; 32]; 32],
+        color_values: &[u8; 4],
+        color_rects: &mut ColorRects,
+    ) {
+        let y_tile_index = if y >= memory.wy as usize {
+            y - memory.wy as usize
+        } else {
+            0
+        };
+
+        for x in 0..22 {
+            let tile = memory.vram_read_tile(
+                TileType::Window,
+                tilemap[(y_tile_index / 8) % 32][(x / 8) % 32],
+            );
+
+            let x_pos = x as i32 * 8;
+            let x_offset = memory.scx as i32 % 8;
+
+            self.get_rects_for_tile(
+                tile,
+                x_pos + x_offset,
+                y as i32,
+                0,
                 color_values,
                 color_rects,
             );

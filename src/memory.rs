@@ -64,6 +64,8 @@ pub struct Memory {
     ly: u8,
     pub scy: u8,
     pub scx: u8,
+    pub wy: u8,
+    pub wx: u8,
     pub debug: bool,
 }
 
@@ -99,6 +101,8 @@ impl Memory {
             ly: 0,
             scy: 0,
             scx: 0,
+            wy: 0,
+            wx: 0,
             debug: false,
         }
     }
@@ -226,6 +230,8 @@ impl Memory {
                 0xFF42 => self.scy,
                 0xFF43 => self.scx,
                 0xFF44 => self.ly,
+                0xFF4A => self.wy,
+                0xFF4B => self.wx,
                 _ => {
                     let mapped = address - 0xFF00;
                     self.io_registers[mapped as usize]
@@ -326,6 +332,8 @@ impl Memory {
                 0xFF46 => {
                     self.dma_transfer(data);
                 }
+                0xFF4A => self.wy = data,
+                0xFF4B => self.wx = data,
                 0xFF50 => {
                     if self.use_boot_rom {
                         self.use_boot_rom = false;
@@ -419,6 +427,27 @@ impl Memory {
         //get LCDC bit 3 to toggle BG tile map locations
         // TODO: better way to do this...
         let start_address = if self.io_registers[0x40] & 0b0000_1000 == 0b0000_1000 {
+            0x9C00 - 0x8000
+        } else {
+            0x9800 - 0x8000
+        };
+
+        let indices = self.vram[start_address..(start_address + 0x400)].to_vec();
+        let mut result = [[0; 32]; 32];
+
+        for row in 0..32 {
+            for col in 0..32 {
+                result[row][col] = indices[(row * 32) + col];
+            }
+        }
+
+        result
+    }
+
+    pub fn read_window_tile_map(&self) -> [[u8; 32]; 32] {
+        //get LCDC bit 6 to toggle window tile map locations
+        // TODO: better way to do this...
+        let start_address = if self.io_registers[0x40] & 0b0100_0000 == 0b0100_0000 {
             0x9C00 - 0x8000
         } else {
             0x9800 - 0x8000

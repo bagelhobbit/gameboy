@@ -3,7 +3,8 @@ use gameboy::{
     instructions::Instruction,
     memory::Memory,
     ppu::{ColorRects, Ppu},
-    util::get_as_bits, tile_info::TileType,
+    tile_info::TileType,
+    util::get_as_bits,
 };
 use sdl2::{
     event::{Event, WindowEvent},
@@ -107,6 +108,7 @@ fn main() {
         if memory.frame_happened {
             canvas.clear();
             let tilemap = memory.read_bg_tile_map();
+            let window_tilemap = memory.read_window_tile_map();
 
             let mut color_rects = ColorRects::default();
 
@@ -121,7 +123,23 @@ fn main() {
 
             // render an extra tile's worth of pixels to enable partially rendering tiles from offscreen
             for y in 0..(144 + 8) {
-                ppu.render_scanline(&memory, y, &tilemap, &color_values, &mut color_rects);
+                // check LCDC bit to see if window should be displayed or not
+                if memory.io_registers[0x40] & 0b0010_0000 == 0b0010_0000 {
+                    // Only draw if the window is actually visible
+                    if memory.wx <= 166 && memory.wy <= 143 && y >= (memory.wy as usize) {
+                        ppu.render_window_scanline(
+                            &memory,
+                            y,
+                            &window_tilemap,
+                            &color_values,
+                            &mut color_rects,
+                        );
+                    } else {
+                        ppu.render_scanline(&memory, y, &tilemap, &color_values, &mut color_rects);
+                    }
+                } else {
+                    ppu.render_scanline(&memory, y, &tilemap, &color_values, &mut color_rects);
+                }
             }
 
             let mut palette: u8;
