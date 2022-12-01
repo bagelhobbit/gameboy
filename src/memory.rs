@@ -66,6 +66,7 @@ pub struct Memory {
     pub scx: u8,
     pub wy: u8,
     pub wx: u8,
+    lcd_stat: u8,
     pub debug: bool,
 }
 
@@ -103,6 +104,7 @@ impl Memory {
             scx: 0,
             wy: 0,
             wx: 0,
+            lcd_stat: 1,
             debug: false,
         }
     }
@@ -227,6 +229,7 @@ impl Memory {
                 0xFF05 => (self.timer_counter / self.timer_clock as u32) as u8,
                 0xFF06 => self.timer_modulo,
                 0xFF07 => self.io_registers[0x07],
+                0xFF41 => self.lcd_stat,
                 0xFF42 => self.scy,
                 0xFF43 => self.scx,
                 0xFF44 => self.ly,
@@ -326,6 +329,7 @@ impl Memory {
                         _ => 256,
                     };
                 }
+                0xFF41 => {} //read-only value
                 0xFF42 => self.scy = data,
                 0xFF43 => self.scx = data,
                 0xFF44 => {} //read-only value
@@ -386,6 +390,31 @@ impl Memory {
             if self.ly == 154 {
                 self.ly = 0;
                 self.frame_happened = true;
+            }
+        }
+
+        // Set LCD status
+        // Bit 6 - LYC=LY STAT Interrupt source R/W
+        // Bit 5 - Mode 2 OAM STAT Interrupt source R/W
+        // Bit 4 - Mode 1 VBlank STAT Interrupt source R/W
+        // Bit 3 - Mode 0 HBlank STAT Interrupt source R/W
+        // Bit 2 - LYC=LY Flag (0=Different, 1=Equal) Read Only
+        // Bit 1-0 - Mode Flag Read Only
+        //      0: HBlank, 1: VBlank, 2: Searching OAM, 3: Transferring Data to LCD Controller
+
+        // Mode 2 - OAM Scan: lasts 80 dots
+        // Mode 3 - Drawing Pixels: lasts 172-289 dots (median: 230.5 ~ 230)
+        // Mode 0 - Horizontal Blank: lasts 87-204 dots (based off time remaining after mode 3) (median: 145.5 ~ 146)
+        // Mode 1 - Vertical Blank: 10 "scanlines" (lines 144-153)
+        if self.ly >= 144 {
+            self.lcd_stat = (self.lcd_stat & 0b1111_1100) + 1;
+        } else {
+            if self.time == 0 {
+                self.lcd_stat = (self.lcd_stat & 0b1111_1100) + 2;
+            } else if self.time == 81 {
+                self.lcd_stat = (self.lcd_stat & 0b1111_1100) + 3;
+            } else if self.time == 311 {
+                self.lcd_stat &= 0b1111_1100;
             }
         }
     }

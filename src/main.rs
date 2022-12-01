@@ -79,9 +79,9 @@ fn main() {
                     keycode: Some(Keycode::F12),
                     ..
                 } => {
-                    eprintln!("Enabling debug log");
-                    cpu.debug = true;
-                    memory.debug = true;
+                    eprintln!("Toggling debug log");
+                    cpu.debug = !cpu.debug;
+                    memory.debug = !memory.debug;
                 }
                 _ => {}
             }
