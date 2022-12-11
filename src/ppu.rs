@@ -29,7 +29,8 @@ impl Ppu {
         color_values: &[u8; 4],
         color_rects: &mut ColorRects,
     ) {
-        for x in 0..22 {
+        // Render an extra tile for smooth scrolling
+        for x in 0..21 {
             let tile = memory.vram_read_tile(
                 TileType::Background,
                 tilemap[((memory.scy as usize + y) / 8) % 32]
@@ -41,7 +42,7 @@ impl Ppu {
 
             self.get_rects_for_tile(
                 tile,
-                x_pos + x_offset,
+                x_pos - x_offset,
                 y as i32,
                 memory.scy as i32 % 8,
                 color_values,
@@ -64,18 +65,17 @@ impl Ppu {
             0
         };
 
-        for x in 0..22 {
+        for x in 0..20 {
             let tile = memory.vram_read_tile(
                 TileType::Window,
                 tilemap[(y_tile_index / 8) % 32][(x / 8) % 32],
             );
 
             let x_pos = x as i32 * 8;
-            let x_offset = memory.scx as i32 % 8;
 
             self.get_rects_for_tile(
                 tile,
-                x_pos + x_offset,
+                x_pos,
                 y as i32,
                 0,
                 color_values,
