@@ -68,7 +68,7 @@ impl Ppu {
         for x in 0..20 {
             let tile = memory.vram_read_tile(
                 TileType::Window,
-                tilemap[(y_tile_index / 8) % 32][(x / 8) % 32],
+                tilemap[(y_tile_index / 8) % 32][x],
             );
 
             let x_pos = x as i32 * 8;
