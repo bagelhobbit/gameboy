@@ -66,21 +66,11 @@ impl Ppu {
         };
 
         for x in 0..20 {
-            let tile = memory.vram_read_tile(
-                TileType::Window,
-                tilemap[(y_tile_index / 8) % 32][x],
-            );
+            let tile = memory.vram_read_tile(TileType::Window, tilemap[(y_tile_index / 8) % 32][x]);
 
             let x_pos = x as i32 * 8;
 
-            self.get_rects_for_tile(
-                tile,
-                x_pos,
-                y as i32,
-                0,
-                color_values,
-                color_rects,
-            );
+            self.get_rects_for_tile(tile, x_pos, y as i32, 0, color_values, color_rects);
         }
     }
 

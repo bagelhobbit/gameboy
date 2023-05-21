@@ -57,7 +57,6 @@ fn main() {
     let color1 = Color::RGB(0x88, 0xC0, 0x70);
     let color2 = Color::RGB(0x34, 0x68, 0x56);
     let color3 = Color::RGB(0x08, 0x18, 0x20);
-    let color_transparent = Color::RGBA(0, 0, 0, 0);
 
     let mut canvas = window.into_canvas().build().unwrap();
     canvas.set_draw_color(Color::RGB(0, 255, 255));
@@ -121,12 +120,12 @@ fn main() {
                 (palette_bits[0] << 1) + palette_bits[1],
             ];
 
-            // render an extra tile's worth of pixels to enable partially rendering tiles from offscreen
+            // Render an extra tile's worth of pixels to enable partially rendering tiles from offscreen
             for y in 0..(144 + 8) {
-                // check LCDC bit to see if window should be displayed or not
+                // Check LCDC bit to see if window should be displayed or not
                 if memory.io_registers[0x40] & 0b0010_0000 == 0b0010_0000 {
                     // Only draw if the window is actually visible
-                    if memory.wx <= 166 && memory.wy <= 143 && y >= (memory.wy as usize) {
+                    if memory.wx <= 166 && memory.wy <= 143 && y >= memory.wy as usize {
                         ppu.render_window_scanline(
                             &memory,
                             y,
@@ -143,10 +142,11 @@ fn main() {
             }
 
             let mut palette: u8;
+
             for sprite in memory.read_oam() {
                 if sprite.y == 0 || (memory.io_registers[0x40] & 0b0000_0100 == 0 && sprite.y <= 8)
                 {
-                    //LCDC bit 2 == false, use 8x8 sprite mode
+                    // LCDC bit 2 == false, use 8x8 sprite mode
                     continue;
                 }
 
@@ -195,13 +195,11 @@ fn main() {
 
                         palette = color_values[colors[row][col] as usize];
 
-                        if palette == 0 {
-                            color_rects.transparent_rects.push(rect);
-                        } else if palette == 1 {
+                        if palette == 1 {
                             color_rects.color1_rects.push(rect);
                         } else if palette == 2 {
                             color_rects.color2_rects.push(rect);
-                        } else {
+                        } else if palette == 3 {
                             color_rects.color3_rects.push(rect);
                         }
                     }
@@ -220,8 +218,6 @@ fn main() {
             canvas.set_draw_color(color3);
             canvas.fill_rects(&color_rects.color3_rects).unwrap();
 
-            canvas.set_draw_color(color_transparent);
-            canvas.fill_rects(&color_rects.transparent_rects).unwrap();
 
             memory.frame_happened = false;
         }

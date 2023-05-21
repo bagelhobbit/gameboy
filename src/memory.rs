@@ -228,7 +228,7 @@ impl Memory {
                 }
                 0xFF05 => (self.timer_counter / self.timer_clock as u32) as u8,
                 0xFF06 => self.timer_modulo,
-                0xFF07 => self.io_registers[0x07],
+                0xFF07 => self.io_registers[0x07], // TAC: Timer Control
                 0xFF41 => self.lcd_stat,
                 0xFF42 => self.scy,
                 0xFF43 => self.scx,
@@ -274,7 +274,7 @@ impl Memory {
 
                 // Only settable if we have more than 1 MiB of rom (ie more than 64 banks)
                 if self.max_rom_bank >= 64 {
-                    // set top upper two bits (bits 5-6) of the ROM bank bank number
+                    // Set top upper two bits (bits 5-6) of the ROM bank bank number
                     todo!()
                 }
             } else {
@@ -319,6 +319,7 @@ impl Memory {
                 0xFF05 => self.timer_counter = data as u32 * self.timer_clock as u32,
                 0xFF06 => self.timer_modulo = data,
                 0xFF07 => {
+                    // TAC: Timer Control
                     self.io_registers[0x07] = data;
                     self.timer_enable = data & 0b0000_0100 == 0b0000_0100;
                     let clock_select = data & 0b0000_0011;
@@ -420,8 +421,8 @@ impl Memory {
     }
 
     pub fn vram_read_tile(&self, tile_type: TileType, index: u8) -> TileInfo {
-        //get LCDC bit 4 to toggle indexing modes (from IO registers)
-        // TODO: better way to do this...
+        // Get LCDC bit 4 to toggle indexing modes (from IO registers)
+        // TODO: Better way to do this...
         let lcdc4 = self.io_registers[0x40] & 0b0001_0000 == 0b0001_0000;
 
         match tile_type {
@@ -453,8 +454,8 @@ impl Memory {
     }
 
     pub fn read_bg_tile_map(&self) -> [[u8; 32]; 32] {
-        //get LCDC bit 3 to toggle BG tile map locations
-        // TODO: better way to do this...
+        // Get LCDC bit 3 to toggle BG tile map locations
+        // TODO: Better way to do this...
         let start_address = if self.io_registers[0x40] & 0b0000_1000 == 0b0000_1000 {
             0x9C00 - 0x8000
         } else {
@@ -474,8 +475,8 @@ impl Memory {
     }
 
     pub fn read_window_tile_map(&self) -> [[u8; 32]; 32] {
-        //get LCDC bit 6 to toggle window tile map locations
-        // TODO: better way to do this...
+        // Get LCDC bit 6 to toggle window tile map locations
+        // TODO: Better way to do this...
         let start_address = if self.io_registers[0x40] & 0b0100_0000 == 0b0100_0000 {
             0x9C00 - 0x8000
         } else {

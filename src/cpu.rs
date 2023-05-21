@@ -2111,17 +2111,17 @@ impl Cpu {
     /// If interrutps are enabled, check if any interrupts are requested and if so call the interrupt handler
     fn check_interrupts(&mut self, instruction: Instruction, cpu_bus: &mut impl CpuBus) {
         if instruction != Instruction::EnableInterrupts && self.interrupts_enabled {
-            // mask the relevant flag bits just in case
+            // Mask the relevant flag bits just in case
             let requested_interrupt_flags = cpu_bus.read(0xFF0F) & 0x1F;
             let enabled_interrupt_flags = cpu_bus.read(0xFFFF) & 0x1F;
 
-            //TODO: interrupts should take 5 M-cycles, but this should ony take 2
+            //TODO: Interrupts should take 5 M-cycles, but this should ony take 2
 
-            // we only want to process interrupts that are both requested and enabled
+            // We only want to process interrupts that are both requested and enabled
             if requested_interrupt_flags & enabled_interrupt_flags > 0 {
                 let interrupt_flags = get_as_bits(requested_interrupt_flags);
                 self.interrupts_enabled = false;
-                // process interrupts in order of priority and clear the IF bit of the processed interrupt
+                // Process interrupts in order of priority and clear the IF bit of the processed interrupt
                 if interrupt_flags[7] == 1 {
                     // VBlank
                     cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xFE);
@@ -2145,17 +2145,17 @@ impl Cpu {
                 }
             }
         } else if self.halt {
-            // mask the relevant flag bits just in case
+            // Mask the relevant flag bits just in case
             let requested_interrupt_flags = cpu_bus.read(0xFF0F) & 0x1F;
             let enabled_interrupt_flags = cpu_bus.read(0xFFFF) & 0x1F;
 
-            //TODO: interrupts should take 5 M-cycles, but this should ony take 2
+            //TODO: Interrupts should take 5 M-cycles, but this should ony take 2
 
-            // we only want to process interrupts that are both requested and enabled
+            // We only want to process interrupts that are both requested and enabled
             if requested_interrupt_flags & enabled_interrupt_flags > 0 {
                 let interrupt_flags = get_as_bits(requested_interrupt_flags);
                 self.interrupts_enabled = false;
-                // process interrupts in order of priority and clear the IF bit of the processed interrupt
+                // Process interrupts in order of priority and clear the IF bit of the processed interrupt
                 if interrupt_flags[7] == 1 {
                     // VBlank
                     cpu_bus.write(0xFF0F, requested_interrupt_flags & 0xFE);
